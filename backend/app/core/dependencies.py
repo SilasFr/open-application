@@ -15,9 +15,11 @@ from supabase import Client, create_client
 
 from app.core.config import Settings, get_settings
 from app.domain.ai import AIClient
+from app.domain.auth import TokenVerifier
 from app.domain.repositories import ApplicationRepository
 from app.infrastructure.ai.anthropic_client import AnthropicClient
 from app.infrastructure.ai.prompts import load_prompt
+from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
@@ -56,6 +58,21 @@ def get_ai_client(settings: SettingsDep) -> AIClient:
 
 
 AIClientDep = Annotated[AIClient, Depends(get_ai_client)]
+
+
+@lru_cache
+def get_token_verifier() -> TokenVerifier:
+    # Cached so JWKS keys are fetched once and reused across requests.
+    settings = get_settings()
+    return SupabaseTokenVerifier(
+        jwt_secret=settings.supabase_jwt_secret,
+        jwks_url=settings.supabase_jwks_url,
+        issuer=settings.supabase_issuer,
+        audience=settings.supabase_jwt_audience,
+    )
+
+
+TokenVerifierDep = Annotated[TokenVerifier, Depends(get_token_verifier)]
 
 
 @lru_cache

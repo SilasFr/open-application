@@ -1,15 +1,25 @@
 /**
  * Thin client for the FastAPI backend.
  *
- * NOTE: the backend currently identifies the user via an `X-User-Id` header stub
- * (see backend/app/core/security.py). Once Supabase-JWT auth lands, replace this
- * with the access token: `Authorization: Bearer <token>`.
+ * Authenticates by sending the current Supabase session's access token as
+ * `Authorization: Bearer <token>`; the backend verifies it (see
+ * backend/app/core/security.py). Requests made while signed out have no token
+ * and the backend responds 401.
  */
+
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// Temporary demo identity until real auth is wired in.
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000000";
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured) return {};
+  const supabase = createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session ? { Authorization: `Bearer ${session.access_token}` } : {};
+}
 
 export type ApplicationStatus =
   | "saved"
@@ -43,12 +53,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      "X-User-Id": DEMO_USER_ID,
+      ...(await authHeaders()),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
   });
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new Error("Please sign in to continue.");
+    }
     const detail = await res.json().catch(() => ({}));
     throw new Error(detail.detail ?? `Request failed (${res.status})`);
   }
