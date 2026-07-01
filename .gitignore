@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.python-version
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# uv
+# (uv.lock IS committed; nothing to ignore here)
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+.supabase/
+
+# Agent local settings (skills ARE committed; local perms/creds are not)
+.claude/settings.local.json
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
