@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.api.v1.routers import applications, cv, health
 from app.core.config import get_settings
 from app.domain.exceptions import (
+    AuthenticationError,
     DomainError,
     InvalidStatusTransition,
     NotFoundError,
@@ -19,6 +20,14 @@ _API_V1_PREFIX = "/api/v1"
 
 def _register_exception_handlers(app: FastAPI) -> None:
     """Map domain errors to HTTP responses so handlers never do it themselves."""
+
+    @app.exception_handler(AuthenticationError)
+    async def _handle_auth_error(_: Request, exc: AuthenticationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": str(exc)},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     @app.exception_handler(NotFoundError)
     async def _handle_not_found(_: Request, exc: NotFoundError) -> JSONResponse:

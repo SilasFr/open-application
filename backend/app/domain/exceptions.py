@@ -7,6 +7,10 @@ class DomainError(Exception):
     """Base class for all domain/business-rule violations."""
 
 
+class AuthenticationError(DomainError):
+    """The caller could not be authenticated (missing/invalid/expired token)."""
+
+
 class NotFoundError(DomainError):
     """A requested entity does not exist (or is not owned by the caller)."""
 

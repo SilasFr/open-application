@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     supabase_url: str = ""
     supabase_service_key: str = ""
+    # Legacy HS256 projects set this; asymmetric-key projects leave it empty and
+    # tokens are verified against the JWKS endpoint derived from supabase_url.
+    supabase_jwt_secret: str = ""
+    supabase_jwt_audience: str = "authenticated"
 
     anthropic_api_key: str = ""
     ai_model: str = "claude-sonnet-5"
@@ -31,6 +35,16 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def supabase_issuer(self) -> str:
+        base = self.supabase_url.rstrip("/")
+        return f"{base}/auth/v1" if base else ""
+
+    @property
+    def supabase_jwks_url(self) -> str:
+        base = self.supabase_url.rstrip("/")
+        return f"{base}/auth/v1/.well-known/jwks.json" if base else ""
 
 
 @lru_cache
