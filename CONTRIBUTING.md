@@ -9,17 +9,43 @@ Thanks for helping build Open Application! This project follows **Spec-Driven De
 have a corresponding `specs/<feature>/spec.md` (and usually `plan.md` + `tasks.md`) committed
 first or in the same PR.
 
+## Branch-per-feature
+
+`main` stays releasable. **Every feature is built on its own branch, and the branch name
+matches its Spec Kit feature id** — a zero-padded number plus a slug, e.g.
+`001-mvp-tracker-cv-tailoring`. That one name is shared by three things:
+
+- the git branch,
+- the spec folder `specs/001-mvp-tracker-cv-tailoring/`,
+- the feature id Spec Kit tracks in `.specify/feature.json`.
+
+Start a feature with the helper, which creates the spec folder **and** the matching branch in
+one step (keeping the names in sync automatically):
+
+```bash
+scripts/new-feature.sh "Import a resume from a PDF"
+# or force a slug:
+scripts/new-feature.sh --short-name "resume-import" "Import a resume from a PDF"
+```
+
+Work the feature to completion on that branch, then open a **pull request into `main`**. The
+spec, plan, tasks, and implementation all land together in that PR.
+
 ## The workflow (GitHub Spec Kit)
 
-We use [Spec Kit](https://github.com/github/spec-kit). From Claude Code:
+We use [Spec Kit](https://github.com/github/spec-kit). Read
+[`.specify/memory/constitution.md`](.specify/memory/constitution.md) first — it governs every
+plan and implementation. Then, from Claude Code (on your feature branch):
 
-1. **`/speckit.constitution`** — the project's non-negotiable principles. Read
-   [`.specify/memory/constitution.md`](.specify/memory/constitution.md) before you start; it
-   governs every plan and implementation.
-2. **`/speckit.specify`** — describe *what* and *why* (not *how*). Produces `specs/<n>/spec.md`.
-3. **`/speckit.plan`** — the technical approach for that spec.
-4. **`/speckit.tasks`** — an ordered, reviewable task list.
-5. **`/speckit.implement`** — build it, honoring the constitution.
+1. **`scripts/new-feature.sh "<description>"`** — creates `specs/<id>/spec.md` and the `<id>`
+   branch. (Equivalent to `/speckit-specify` plus cutting the branch.)
+2. **`/speckit-plan`** — the technical approach for that spec.
+3. **`/speckit-tasks`** — an ordered, reviewable task list.
+4. **`/speckit-implement`** — build it, honoring the constitution.
+5. Open a PR into `main`.
+
+To change the project's guiding principles, run **`/speckit-constitution`** (updates
+`.specify/memory/constitution.md`) on its own branch.
 
 ## Architecture rules (enforced by the constitution)
 
