@@ -112,18 +112,18 @@ application's detail panel.
 **Independent Test**: Open panel → add a contact (name/role/email) → lists with metadata; edit to
 add LinkedIn → saves; delete → disappears; reload → persists.
 
-- [ ] T028 [P] [US3] Add `ApplicationContact` entity in `backend/app/domain/entities.py`
-- [ ] T029 [US3] Add `ContactRepository` ABC in `backend/app/domain/repositories.py`
-- [ ] T030 [US3] Add `InMemoryContactRepository` fake in `backend/tests/fakes.py`
-- [ ] T031 [P] [US3] Unit tests for `ContactService` (CRUD + parent-ownership 404) in `backend/tests/unit/test_contact_service.py`
-- [ ] T032 [P] [US3] API tests for contacts routes (incl. 422 on bad email/url) in `backend/tests/integration/test_contacts_api.py`
-- [ ] T033 [US3] `SupabaseContactRepository` in `backend/app/infrastructure/supabase/contact_repository.py`
-- [ ] T034 [US3] `ContactService` in `backend/app/services/contact_service.py`
-- [ ] T035 [P] [US3] Contact DTOs with `EmailStr`/URL validation in `backend/app/schemas/contact.py`
-- [ ] T036 [US3] `contacts` router in `backend/app/api/v1/routers/contacts.py` and register in `backend/app/main.py`
-- [ ] T037 [US3] Wire `ContactRepository`/`ContactService` in `backend/app/core/dependencies.py`; update `backend/tests/integration/conftest.py`
-- [ ] T038 [P] [US3] Add contact type + API methods in `frontend/src/lib/api.ts`
-- [ ] T039 [US3] `ContactsSection` component in `frontend/src/components/ContactsSection.tsx` and render it in `ApplicationDetailPanel`
+- [X] T028 [P] [US3] Add `ApplicationContact` entity in `backend/app/domain/entities.py`
+- [X] T029 [US3] Add `ContactRepository` ABC in `backend/app/domain/repositories.py`
+- [X] T030 [US3] Add `InMemoryContactRepository` fake in `backend/tests/fakes.py`
+- [X] T031 [P] [US3] Unit tests for `ContactService` (CRUD + parent-ownership 404) in `backend/tests/unit/test_contact_service.py`
+- [X] T032 [P] [US3] API tests for contacts routes (incl. 422 on bad email/url) in `backend/tests/integration/test_contacts_api.py`
+- [X] T033 [US3] `SupabaseContactRepository` in `backend/app/infrastructure/supabase/contact_repository.py`
+- [X] T034 [US3] `ContactService` in `backend/app/services/contact_service.py`
+- [X] T035 [P] [US3] Contact DTOs with `EmailStr`/URL validation in `backend/app/schemas/contact.py`
+- [X] T036 [US3] `contacts` router in `backend/app/api/v1/routers/contacts.py` and register in `backend/app/main.py`
+- [X] T037 [US3] Wire `ContactRepository`/`ContactService` in `backend/app/core/dependencies.py`; update `backend/tests/integration/conftest.py`
+- [X] T038 [P] [US3] Add contact type + API methods in `frontend/src/lib/api.ts`
+- [X] T039 [US3] `ContactsSection` component in `frontend/src/components/ContactsSection.tsx` and render it in `ApplicationDetailPanel`
 
 **Checkpoint**: US1 + US2 + US3 all work independently.
 

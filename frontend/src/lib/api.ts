@@ -59,6 +59,27 @@ export interface ApplicationNote {
   updated_at: string;
 }
 
+export interface ApplicationContact {
+  id: string;
+  application_id: string;
+  name: string;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ContactInput {
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  linkedin_url?: string;
+  notes?: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -123,4 +144,31 @@ export const api = {
     request<void>(`/api/v1/applications/${applicationId}/notes/${noteId}`, {
       method: "DELETE",
     }),
+
+  listContacts: (applicationId: string) =>
+    request<ApplicationContact[]>(
+      `/api/v1/applications/${applicationId}/contacts`,
+    ),
+
+  createContact: (applicationId: string, input: ContactInput) =>
+    request<ApplicationContact>(
+      `/api/v1/applications/${applicationId}/contacts`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+
+  updateContact: (
+    applicationId: string,
+    contactId: string,
+    input: Partial<ContactInput>,
+  ) =>
+    request<ApplicationContact>(
+      `/api/v1/applications/${applicationId}/contacts/${contactId}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+
+  deleteContact: (applicationId: string, contactId: string) =>
+    request<void>(
+      `/api/v1/applications/${applicationId}/contacts/${contactId}`,
+      { method: "DELETE" },
+    ),
 };

@@ -36,6 +36,22 @@ class ApplicationNote:
 
 
 @dataclass
+class ApplicationContact:
+    """A professional contact (recruiter, hiring manager, referrer) related to an application."""
+
+    id: str
+    application_id: str
+    user_id: str
+    name: str
+    role: str | None
+    email: str | None
+    phone: str | None
+    linkedin_url: str | None
+    notes: str | None
+    created_at: datetime
+
+
+@dataclass
 class CV:
     """A base CV uploaded by the user."""
 

@@ -16,15 +16,21 @@ from supabase import Client, create_client
 from app.core.config import Settings, get_settings
 from app.domain.ai import AIClient
 from app.domain.auth import TokenVerifier
-from app.domain.repositories import ApplicationRepository, NoteRepository
+from app.domain.repositories import (
+    ApplicationRepository,
+    ContactRepository,
+    NoteRepository,
+)
 from app.infrastructure.ai.anthropic_client import AnthropicClient
 from app.infrastructure.ai.prompts import load_prompt
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
+from app.infrastructure.supabase.contact_repository import SupabaseContactRepository
 from app.infrastructure.supabase.note_repository import SupabaseNoteRepository
 from app.services.application_service import ApplicationService
+from app.services.contact_service import ContactService
 from app.services.cv_tailoring_service import CVTailoringService
 from app.services.note_service import NoteService
 
@@ -67,6 +73,22 @@ def get_note_service(
 
 
 NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
+
+
+def get_contact_repository(client: SupabaseDep) -> ContactRepository:
+    return SupabaseContactRepository(client)
+
+
+ContactRepositoryDep = Annotated[ContactRepository, Depends(get_contact_repository)]
+
+
+def get_contact_service(
+    repository: ContactRepositoryDep, application_repository: ApplicationRepositoryDep
+) -> ContactService:
+    return ContactService(repository, application_repository)
+
+
+ContactServiceDep = Annotated[ContactService, Depends(get_contact_service)]
 
 
 def get_ai_client(settings: SettingsDep) -> AIClient:

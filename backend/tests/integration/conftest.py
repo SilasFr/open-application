@@ -10,17 +10,20 @@ from fastapi.testclient import TestClient
 
 from app.core.dependencies import (
     get_application_service,
+    get_contact_service,
     get_cv_tailoring_service,
     get_note_service,
 )
 from app.core.security import get_current_user_id
 from app.main import create_app
 from app.services.application_service import ApplicationService
+from app.services.contact_service import ContactService
 from app.services.cv_tailoring_service import CVTailoringService
 from app.services.note_service import NoteService
 from tests.fakes import (
     FakeAIClient,
     InMemoryApplicationRepository,
+    InMemoryContactRepository,
     InMemoryNoteRepository,
 )
 
@@ -32,11 +35,15 @@ def _override_services(app: FastAPI) -> None:
     """Inject in-memory service implementations so tests need no network."""
     repository = InMemoryApplicationRepository()
     note_repository = InMemoryNoteRepository()
+    contact_repository = InMemoryContactRepository()
     app.dependency_overrides[get_application_service] = lambda: ApplicationService(
         repository, note_repository
     )
     app.dependency_overrides[get_note_service] = lambda: NoteService(
         note_repository, repository
+    )
+    app.dependency_overrides[get_contact_service] = lambda: ContactService(
+        contact_repository, repository
     )
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
         FakeAIClient(response="# Tailored"), _PROMPT

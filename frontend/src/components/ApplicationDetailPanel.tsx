@@ -2,6 +2,7 @@
 
 import type { Application } from "@/lib/api";
 import NotesTimeline from "@/components/NotesTimeline";
+import ContactsSection from "@/components/ContactsSection";
 
 interface ApplicationDetailPanelProps {
   application: Application;
@@ -9,7 +10,7 @@ interface ApplicationDetailPanelProps {
 }
 
 /** Slide-over with an application's timeline, contacts, and tasks.
- * Contacts/Tasks sections are added by later user stories (US3/US4). */
+ * Tasks section is added by a later user story (US4). */
 export default function ApplicationDetailPanel({
   application,
   onClose,
@@ -37,6 +38,7 @@ export default function ApplicationDetailPanel({
 
         <div className="mt-4">
           <NotesTimeline applicationId={application.id} />
+          <ContactsSection applicationId={application.id} />
         </div>
       </div>
     </div>
