@@ -26,7 +26,7 @@ export default function AuthStatus() {
 
   async function signOut() {
     await createClient().auth.signOut();
-    router.push("/");
+    router.push("/login");
     router.refresh();
   }
 
