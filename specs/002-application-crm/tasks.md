@@ -25,8 +25,8 @@ status endpoint; US2–US4 each add a backend vertical slice mirroring the Appli
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 [P] Add `@dnd-kit/core` and `@dnd-kit/sortable` to `frontend/package.json` (`npm install`)
-- [ ] T002 [P] Add `email-validator` (via `pydantic[email]`) to `backend/pyproject.toml` and `uv sync` (needed for `EmailStr`)
+- [X] T001 [P] Add `@dnd-kit/core` and `@dnd-kit/sortable` to `frontend/package.json` (`npm install`)
+- [X] T002 [P] Add `email-validator` (via `pydantic[email]`) to `backend/pyproject.toml` and `uv sync` (needed for `EmailStr`)
 
 ---
 
@@ -34,7 +34,7 @@ status endpoint; US2–US4 each add a backend vertical slice mirroring the Appli
 
 **Purpose**: The database groundwork the CRM data stories depend on. **US1 does not depend on this phase.**
 
-- [ ] T003 Create migration `backend/../supabase/migrations/20260701T000000_application_crm.sql` — tables `application_notes`, `application_contacts`, `application_tasks` with RLS (`auth.uid() = user_id`), FKs `ON DELETE CASCADE` to `applications`/`auth.users`, indexes, and a `set_updated_at` trigger on `application_notes` (mirror `supabase/migrations/20260701170000_init.sql`)
+- [X] T003 Create migration `backend/../supabase/migrations/20260701T000000_application_crm.sql` — tables `application_notes`, `application_contacts`, `application_tasks` with RLS (`auth.uid() = user_id`), FKs `ON DELETE CASCADE` to `applications`/`auth.users`, indexes, and a `set_updated_at` trigger on `application_notes` (mirror `supabase/migrations/20260701170000_init.sql`)
 
 **Checkpoint**: Schema defined. Apply it (T054) before manual testing of US2–US4.
 
@@ -51,13 +51,13 @@ with counts; drag Saved→Applied persists after reload; drag Saved→Offer reve
 **Note**: Frontend-only — reuses the existing `PATCH /api/v1/applications/{id}/status` and
 `api.changeStatus` in `frontend/src/lib/api.ts`. No backend changes.
 
-- [ ] T004 [P] [US1] Create `ApplicationCard` component in `frontend/src/components/ApplicationCard.tsx` (draggable via @dnd-kit; shows company/role/status)
-- [ ] T005 [P] [US1] Add board↔status column mapping helper (Closed collapses accepted/rejected/withdrawn) in `frontend/src/lib/board.ts`
-- [ ] T006 [US1] Create `KanbanBoard` component in `frontend/src/components/KanbanBoard.tsx` (5 columns via @dnd-kit `DndContext`, per-column counts) — depends on T004, T005
-- [ ] T007 [US1] Handle drag-end in `KanbanBoard.tsx`: optimistic move → `api.changeStatus`; on 409 revert card and surface the validation error
-- [ ] T008 [P] [US1] Create `SearchBar` component + client-side filter (company/role/contact) in `frontend/src/components/SearchBar.tsx`
-- [ ] T009 [US1] Replace the flat list in `frontend/src/app/tracker/page.tsx` with `KanbanBoard` + `SearchBar`
-- [ ] T010 [US1] Verify `cd frontend && npm run lint && npm run build` pass
+- [X] T004 [P] [US1] Create `ApplicationCard` component in `frontend/src/components/ApplicationCard.tsx` (draggable via @dnd-kit; shows company/role/status)
+- [X] T005 [P] [US1] Add board↔status column mapping helper (Closed collapses accepted/rejected/withdrawn) in `frontend/src/lib/board.ts`
+- [X] T006 [US1] Create `KanbanBoard` component in `frontend/src/components/KanbanBoard.tsx` (5 columns via @dnd-kit `DndContext`, per-column counts) — depends on T004, T005
+- [X] T007 [US1] Handle drag-end in `KanbanBoard.tsx`: optimistic move → `api.changeStatus`; on 409 revert card and surface the validation error
+- [X] T008 [P] [US1] Create `SearchBar` component + client-side filter (company/role/contact) in `frontend/src/components/SearchBar.tsx`
+- [X] T009 [US1] Replace the flat list in `frontend/src/app/tracker/page.tsx` with `KanbanBoard` + `SearchBar`
+- [X] T010 [US1] Verify `cd frontend && npm run lint && npm run build` pass
 
 **Checkpoint**: US1 is a fully functional MVP — demoable on its own.
 

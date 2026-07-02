@@ -10,6 +10,7 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
     "anthropic>=0.45",
+    "pydantic[email]>=2.10",
     "pyjwt[crypto]>=2.10",
     "supabase>=2.11",
     "python-multipart>=0.0.18",
