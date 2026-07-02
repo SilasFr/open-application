@@ -89,7 +89,7 @@ User → clicks "Continue with LinkedIn"
 
 ```
 User → clicks "Forgot password?" on /login
-   → enters email → supabase.auth.resetPasswordForEmail(email, { redirectTo: '<origin>/auth/reset-password' })
+   → enters email → supabase.auth.resetPasswordForEmail(email, { redirectTo: '<origin>/auth/callback?next=/auth/reset-password' })
    → notice: "If an account exists, you'll receive a reset email."
    
 User clicks link in email:

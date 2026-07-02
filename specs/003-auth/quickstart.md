@@ -127,10 +127,10 @@ This guide describes how to validate that each auth flow works end-to-end after 
 
 **Steps**:
 1. While signed in, click "Sign out" in the header
-2. Confirm redirect to home page
+2. Confirm redirect to `/login`
 3. Manually navigate to `http://localhost:3000/tracker`
 
-**Expected**: Step 2 shows the home page with "Sign in" link; Step 3 redirects to `/login`.
+**Expected**: Step 2 lands on `/login`; Step 3 redirects to `/login`.
 
 ---
 

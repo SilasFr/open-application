@@ -66,10 +66,15 @@ export default function LoginPage() {
       return;
     }
 
-    const pwdError = validatePassword(password);
-    if (pwdError) {
-      setPasswordError(pwdError);
-      return;
+    // The strength rule only applies to new passwords (sign-up). Re-checking
+    // it on sign-in would lock out existing accounts whose password predates
+    // this rule, or simply doesn't match it, even though it's still correct.
+    if (mode === "sign-up") {
+      const pwdError = validatePassword(password);
+      if (pwdError) {
+        setPasswordError(pwdError);
+        return;
+      }
     }
 
     setLoading(true);
@@ -110,8 +115,14 @@ export default function LoginPage() {
     setNotice(null);
     const supabase = createClient();
     try {
+      // Route through /auth/callback (the same code-exchange path used for
+      // OAuth) rather than pointing directly at /auth/reset-password. Any
+      // redirect_to not in Supabase's Redirect URLs allowlist is silently
+      // downgraded to the bare site URL, stranding the recovery tokens where
+      // nothing can read them — so /auth/callback (and, ideally, a wildcard
+      // covering it) must be present in that allowlist. See frontend/.env.example.
       await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset-password`,
       });
       setNotice("If an account exists, you'll receive a reset email.");
     } catch {

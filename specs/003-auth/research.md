@@ -42,7 +42,7 @@
 
 ### Decision 4: Password reset flow
 
-**Decision**: Use Supabase's built-in password reset email (`resetPasswordForEmail`) with a redirect to `/auth/reset-password`, then `updateUser({ password })` on that page.
+**Decision**: Use Supabase's built-in password reset email (`resetPasswordForEmail`) with a redirect to `/auth/callback?next=/auth/reset-password` — not directly to `/auth/reset-password`, which is not in Supabase's redirect allowlist and would be silently downgraded to the bare site URL — then `updateUser({ password })` on that page once the callback route exchanges the code and forwards there.
 
 **Rationale**: Supabase handles the secure token generation, delivery, and expiry for the reset link. The app only needs to (a) trigger the email and (b) provide the UI to set a new password once the user lands from the link. The auth callback route (`/auth/callback`) handles the code exchange for the reset token automatically (same route as OAuth).
 
