@@ -52,6 +52,19 @@ class ApplicationContact:
 
 
 @dataclass
+class ApplicationTask:
+    """A checklist item for an application (e.g. "Send thank-you email")."""
+
+    id: str
+    application_id: str
+    user_id: str
+    title: str
+    is_completed: bool
+    due_date: datetime | None
+    created_at: datetime
+
+
+@dataclass
 class CV:
     """A base CV uploaded by the user."""
 

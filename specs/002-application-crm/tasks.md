@@ -136,18 +136,18 @@ add LinkedIn → saves; delete → disappears; reload → persists.
 **Independent Test**: Open panel → add task (unchecked) → toggle (completed) → reload → state
 persists.
 
-- [ ] T040 [P] [US4] Add `ApplicationTask` entity in `backend/app/domain/entities.py`
-- [ ] T041 [US4] Add `TaskRepository` ABC in `backend/app/domain/repositories.py`
-- [ ] T042 [US4] Add `InMemoryTaskRepository` fake in `backend/tests/fakes.py`
-- [ ] T043 [P] [US4] Unit tests for `TaskService` (CRUD + toggle completion + parent-ownership 404) in `backend/tests/unit/test_task_service.py`
-- [ ] T044 [P] [US4] API tests for tasks routes in `backend/tests/integration/test_tasks_api.py`
-- [ ] T045 [US4] `SupabaseTaskRepository` in `backend/app/infrastructure/supabase/task_repository.py`
-- [ ] T046 [US4] `TaskService` in `backend/app/services/task_service.py`
-- [ ] T047 [P] [US4] Task DTOs (`TaskCreate`/`TaskUpdate`/`TaskRead`) in `backend/app/schemas/task.py`
-- [ ] T048 [US4] `tasks` router (incl. `PATCH …/tasks/{id}` toggle) in `backend/app/api/v1/routers/tasks.py` and register in `backend/app/main.py`
-- [ ] T049 [US4] Wire `TaskRepository`/`TaskService` in `backend/app/core/dependencies.py`; update `backend/tests/integration/conftest.py`
-- [ ] T050 [P] [US4] Add task type + API methods in `frontend/src/lib/api.ts`
-- [ ] T051 [US4] `TasksSection` component (add/toggle/delete) in `frontend/src/components/TasksSection.tsx` and render it in `ApplicationDetailPanel`
+- [X] T040 [P] [US4] Add `ApplicationTask` entity in `backend/app/domain/entities.py`
+- [X] T041 [US4] Add `TaskRepository` ABC in `backend/app/domain/repositories.py`
+- [X] T042 [US4] Add `InMemoryTaskRepository` fake in `backend/tests/fakes.py`
+- [X] T043 [P] [US4] Unit tests for `TaskService` (CRUD + toggle completion + parent-ownership 404) in `backend/tests/unit/test_task_service.py`
+- [X] T044 [P] [US4] API tests for tasks routes in `backend/tests/integration/test_tasks_api.py`
+- [X] T045 [US4] `SupabaseTaskRepository` in `backend/app/infrastructure/supabase/task_repository.py`
+- [X] T046 [US4] `TaskService` in `backend/app/services/task_service.py`
+- [X] T047 [P] [US4] Task DTOs (`TaskCreate`/`TaskUpdate`/`TaskRead`) in `backend/app/schemas/task.py`
+- [X] T048 [US4] `tasks` router (incl. `PATCH …/tasks/{id}` toggle) in `backend/app/api/v1/routers/tasks.py` and register in `backend/app/main.py`
+- [X] T049 [US4] Wire `TaskRepository`/`TaskService` in `backend/app/core/dependencies.py`; update `backend/tests/integration/conftest.py`
+- [X] T050 [P] [US4] Add task type + API methods in `frontend/src/lib/api.ts`
+- [X] T051 [US4] `TasksSection` component (add/toggle/delete) in `frontend/src/components/TasksSection.tsx` and render it in `ApplicationDetailPanel`
 
 **Checkpoint**: All four user stories work independently.
 

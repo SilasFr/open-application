@@ -13,6 +13,7 @@ from app.core.dependencies import (
     get_contact_service,
     get_cv_tailoring_service,
     get_note_service,
+    get_task_service,
 )
 from app.core.security import get_current_user_id
 from app.main import create_app
@@ -20,11 +21,13 @@ from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
 from app.services.cv_tailoring_service import CVTailoringService
 from app.services.note_service import NoteService
+from app.services.task_service import TaskService
 from tests.fakes import (
     FakeAIClient,
     InMemoryApplicationRepository,
     InMemoryContactRepository,
     InMemoryNoteRepository,
+    InMemoryTaskRepository,
 )
 
 _PROMPT = "CV:\n{{CV}}\n\nJD:\n{{JOB_DESCRIPTION}}"
@@ -36,6 +39,7 @@ def _override_services(app: FastAPI) -> None:
     repository = InMemoryApplicationRepository()
     note_repository = InMemoryNoteRepository()
     contact_repository = InMemoryContactRepository()
+    task_repository = InMemoryTaskRepository()
     app.dependency_overrides[get_application_service] = lambda: ApplicationService(
         repository, note_repository
     )
@@ -44,6 +48,9 @@ def _override_services(app: FastAPI) -> None:
     )
     app.dependency_overrides[get_contact_service] = lambda: ContactService(
         contact_repository, repository
+    )
+    app.dependency_overrides[get_task_service] = lambda: TaskService(
+        task_repository, repository
     )
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
         FakeAIClient(response="# Tailored"), _PROMPT

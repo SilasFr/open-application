@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from app.domain.ai import AIClient
-from app.domain.entities import Application, ApplicationContact, ApplicationNote
+from app.domain.entities import (
+    Application,
+    ApplicationContact,
+    ApplicationNote,
+    ApplicationTask,
+)
 from app.domain.repositories import (
     ApplicationRepository,
     ContactRepository,
     NoteRepository,
+    TaskRepository,
 )
 
 
@@ -110,6 +116,41 @@ class InMemoryContactRepository(ContactRepository):
         contact = self._store.get(contact_id)
         if contact is not None and contact.user_id == user_id:
             del self._store[contact_id]
+
+
+class InMemoryTaskRepository(TaskRepository):
+    """Stores tasks in a dict. No network, deterministic ordering by insert."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, ApplicationTask] = {}
+
+    async def add(self, task: ApplicationTask) -> ApplicationTask:
+        self._store[task.id] = task
+        return task
+
+    async def list_for_application(
+        self, user_id: str, application_id: str
+    ) -> list[ApplicationTask]:
+        return [
+            t
+            for t in self._store.values()
+            if t.user_id == user_id and t.application_id == application_id
+        ]
+
+    async def get(self, user_id: str, task_id: str) -> ApplicationTask | None:
+        task = self._store.get(task_id)
+        if task is None or task.user_id != user_id:
+            return None
+        return task
+
+    async def update(self, task: ApplicationTask) -> ApplicationTask:
+        self._store[task.id] = task
+        return task
+
+    async def delete(self, user_id: str, task_id: str) -> None:
+        task = self._store.get(task_id)
+        if task is not None and task.user_id == user_id:
+            del self._store[task_id]
 
 
 class FakeAIClient(AIClient):

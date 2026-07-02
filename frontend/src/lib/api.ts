@@ -80,6 +80,15 @@ export interface ContactInput {
   notes?: string;
 }
 
+export interface ApplicationTask {
+  id: string;
+  application_id: string;
+  title: string;
+  is_completed: boolean;
+  due_date: string | null;
+  created_at: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -171,4 +180,24 @@ export const api = {
       `/api/v1/applications/${applicationId}/contacts/${contactId}`,
       { method: "DELETE" },
     ),
+
+  listTasks: (applicationId: string) =>
+    request<ApplicationTask[]>(`/api/v1/applications/${applicationId}/tasks`),
+
+  createTask: (applicationId: string, title: string) =>
+    request<ApplicationTask>(`/api/v1/applications/${applicationId}/tasks`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+
+  toggleTask: (applicationId: string, taskId: string, isCompleted: boolean) =>
+    request<ApplicationTask>(
+      `/api/v1/applications/${applicationId}/tasks/${taskId}`,
+      { method: "PATCH", body: JSON.stringify({ is_completed: isCompleted }) },
+    ),
+
+  deleteTask: (applicationId: string, taskId: string) =>
+    request<void>(`/api/v1/applications/${applicationId}/tasks/${taskId}`, {
+      method: "DELETE",
+    }),
 };

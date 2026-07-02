@@ -3,14 +3,14 @@
 import type { Application } from "@/lib/api";
 import NotesTimeline from "@/components/NotesTimeline";
 import ContactsSection from "@/components/ContactsSection";
+import TasksSection from "@/components/TasksSection";
 
 interface ApplicationDetailPanelProps {
   application: Application;
   onClose: () => void;
 }
 
-/** Slide-over with an application's timeline, contacts, and tasks.
- * Tasks section is added by a later user story (US4). */
+/** Slide-over with an application's timeline, contacts, and tasks. */
 export default function ApplicationDetailPanel({
   application,
   onClose,
@@ -39,6 +39,7 @@ export default function ApplicationDetailPanel({
         <div className="mt-4">
           <NotesTimeline applicationId={application.id} />
           <ContactsSection applicationId={application.id} />
+          <TasksSection applicationId={application.id} />
         </div>
       </div>
     </div>

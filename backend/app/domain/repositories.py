@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from app.domain.entities import Application, ApplicationContact, ApplicationNote
+from app.domain.entities import (
+    Application,
+    ApplicationContact,
+    ApplicationNote,
+    ApplicationTask,
+)
 
 
 class ApplicationRepository(ABC):
@@ -90,3 +95,29 @@ class ContactRepository(ABC):
     @abstractmethod
     async def delete(self, user_id: str, contact_id: str) -> None:
         """Remove an owned contact. No-op if it does not exist."""
+
+
+class TaskRepository(ABC):
+    """Persistence contract for :class:`~app.domain.entities.ApplicationTask`."""
+
+    @abstractmethod
+    async def add(self, task: ApplicationTask) -> ApplicationTask:
+        """Persist a new task and return the stored entity."""
+
+    @abstractmethod
+    async def list_for_application(
+        self, user_id: str, application_id: str
+    ) -> list[ApplicationTask]:
+        """Return the owned application's checklist, in creation order."""
+
+    @abstractmethod
+    async def get(self, user_id: str, task_id: str) -> ApplicationTask | None:
+        """Return the owned task, or ``None`` if it does not exist."""
+
+    @abstractmethod
+    async def update(self, task: ApplicationTask) -> ApplicationTask:
+        """Persist changes to an existing task and return it."""
+
+    @abstractmethod
+    async def delete(self, user_id: str, task_id: str) -> None:
+        """Remove an owned task. No-op if it does not exist."""
