@@ -48,6 +48,47 @@ export interface TailoredCV {
   created_at: string;
 }
 
+export type NoteType = "note" | "activity" | "email" | "call" | "interview";
+
+export interface ApplicationNote {
+  id: string;
+  application_id: string;
+  type: NoteType;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationContact {
+  id: string;
+  application_id: string;
+  name: string;
+  role: string | null;
+  email: string | null;
+  phone: string | null;
+  linkedin_url: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface ContactInput {
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  linkedin_url?: string;
+  notes?: string;
+}
+
+export interface ApplicationTask {
+  id: string;
+  application_id: string;
+  title: string;
+  is_completed: boolean;
+  due_date: string | null;
+  created_at: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -91,5 +132,72 @@ export const api = {
     request<TailoredCV>("/api/v1/cv/tailor", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+
+  listNotes: (applicationId: string) =>
+    request<ApplicationNote[]>(`/api/v1/applications/${applicationId}/notes`),
+
+  createNote: (applicationId: string, content: string) =>
+    request<ApplicationNote>(`/api/v1/applications/${applicationId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+
+  updateNote: (applicationId: string, noteId: string, content: string) =>
+    request<ApplicationNote>(
+      `/api/v1/applications/${applicationId}/notes/${noteId}`,
+      { method: "PATCH", body: JSON.stringify({ content }) },
+    ),
+
+  deleteNote: (applicationId: string, noteId: string) =>
+    request<void>(`/api/v1/applications/${applicationId}/notes/${noteId}`, {
+      method: "DELETE",
+    }),
+
+  listContacts: (applicationId: string) =>
+    request<ApplicationContact[]>(
+      `/api/v1/applications/${applicationId}/contacts`,
+    ),
+
+  createContact: (applicationId: string, input: ContactInput) =>
+    request<ApplicationContact>(
+      `/api/v1/applications/${applicationId}/contacts`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
+
+  updateContact: (
+    applicationId: string,
+    contactId: string,
+    input: Partial<ContactInput>,
+  ) =>
+    request<ApplicationContact>(
+      `/api/v1/applications/${applicationId}/contacts/${contactId}`,
+      { method: "PATCH", body: JSON.stringify(input) },
+    ),
+
+  deleteContact: (applicationId: string, contactId: string) =>
+    request<void>(
+      `/api/v1/applications/${applicationId}/contacts/${contactId}`,
+      { method: "DELETE" },
+    ),
+
+  listTasks: (applicationId: string) =>
+    request<ApplicationTask[]>(`/api/v1/applications/${applicationId}/tasks`),
+
+  createTask: (applicationId: string, title: string) =>
+    request<ApplicationTask>(`/api/v1/applications/${applicationId}/tasks`, {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
+
+  toggleTask: (applicationId: string, taskId: string, isCompleted: boolean) =>
+    request<ApplicationTask>(
+      `/api/v1/applications/${applicationId}/tasks/${taskId}`,
+      { method: "PATCH", body: JSON.stringify({ is_completed: isCompleted }) },
+    ),
+
+  deleteTask: (applicationId: string, taskId: string) =>
+    request<void>(`/api/v1/applications/${applicationId}/tasks/${taskId}`, {
+      method: "DELETE",
     }),
 };

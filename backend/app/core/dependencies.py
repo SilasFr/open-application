@@ -16,15 +16,26 @@ from supabase import Client, create_client
 from app.core.config import Settings, get_settings
 from app.domain.ai import AIClient
 from app.domain.auth import TokenVerifier
-from app.domain.repositories import ApplicationRepository
+from app.domain.repositories import (
+    ApplicationRepository,
+    ContactRepository,
+    NoteRepository,
+    TaskRepository,
+)
 from app.infrastructure.ai.anthropic_client import AnthropicClient
 from app.infrastructure.ai.prompts import load_prompt
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
+from app.infrastructure.supabase.contact_repository import SupabaseContactRepository
+from app.infrastructure.supabase.note_repository import SupabaseNoteRepository
+from app.infrastructure.supabase.task_repository import SupabaseTaskRepository
 from app.services.application_service import ApplicationService
+from app.services.contact_service import ContactService
 from app.services.cv_tailoring_service import CVTailoringService
+from app.services.note_service import NoteService
+from app.services.task_service import TaskService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -45,8 +56,58 @@ ApplicationRepositoryDep = Annotated[
 ]
 
 
-def get_application_service(repository: ApplicationRepositoryDep) -> ApplicationService:
-    return ApplicationService(repository)
+def get_note_repository(client: SupabaseDep) -> NoteRepository:
+    return SupabaseNoteRepository(client)
+
+
+NoteRepositoryDep = Annotated[NoteRepository, Depends(get_note_repository)]
+
+
+def get_application_service(
+    repository: ApplicationRepositoryDep, note_repository: NoteRepositoryDep
+) -> ApplicationService:
+    return ApplicationService(repository, note_repository)
+
+
+def get_note_service(
+    repository: NoteRepositoryDep, application_repository: ApplicationRepositoryDep
+) -> NoteService:
+    return NoteService(repository, application_repository)
+
+
+NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
+
+
+def get_contact_repository(client: SupabaseDep) -> ContactRepository:
+    return SupabaseContactRepository(client)
+
+
+ContactRepositoryDep = Annotated[ContactRepository, Depends(get_contact_repository)]
+
+
+def get_contact_service(
+    repository: ContactRepositoryDep, application_repository: ApplicationRepositoryDep
+) -> ContactService:
+    return ContactService(repository, application_repository)
+
+
+ContactServiceDep = Annotated[ContactService, Depends(get_contact_service)]
+
+
+def get_task_repository(client: SupabaseDep) -> TaskRepository:
+    return SupabaseTaskRepository(client)
+
+
+TaskRepositoryDep = Annotated[TaskRepository, Depends(get_task_repository)]
+
+
+def get_task_service(
+    repository: TaskRepositoryDep, application_repository: ApplicationRepositoryDep
+) -> TaskService:
+    return TaskService(repository, application_repository)
+
+
+TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
 
 def get_ai_client(settings: SettingsDep) -> AIClient:

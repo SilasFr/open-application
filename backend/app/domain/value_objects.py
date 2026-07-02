@@ -56,6 +56,16 @@ def can_transition(source: ApplicationStatus, target: ApplicationStatus) -> bool
     return target in _ALLOWED_TRANSITIONS[source]
 
 
+class NoteType(StrEnum):
+    """Kind of entry in an application's activity timeline."""
+
+    NOTE = "note"
+    ACTIVITY = "activity"
+    EMAIL = "email"
+    CALL = "call"
+    INTERVIEW = "interview"
+
+
 @dataclass(frozen=True)
 class JobDescription:
     """The text of a job posting a CV can be tailored against."""
