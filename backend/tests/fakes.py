@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from app.domain.ai import AIClient
-from app.domain.entities import Application
-from app.domain.repositories import ApplicationRepository
+from app.domain.entities import Application, ApplicationNote
+from app.domain.repositories import ApplicationRepository, NoteRepository
 
 
 class InMemoryApplicationRepository(ApplicationRepository):
@@ -35,6 +35,42 @@ class InMemoryApplicationRepository(ApplicationRepository):
         application = self._store.get(application_id)
         if application is not None and application.user_id == user_id:
             del self._store[application_id]
+
+
+class InMemoryNoteRepository(NoteRepository):
+    """Stores notes in a dict. No network, deterministic ordering by insert."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, ApplicationNote] = {}
+
+    async def add(self, note: ApplicationNote) -> ApplicationNote:
+        self._store[note.id] = note
+        return note
+
+    async def list_for_application(
+        self, user_id: str, application_id: str
+    ) -> list[ApplicationNote]:
+        items = [
+            n
+            for n in self._store.values()
+            if n.user_id == user_id and n.application_id == application_id
+        ]
+        return sorted(items, key=lambda n: n.created_at, reverse=True)
+
+    async def get(self, user_id: str, note_id: str) -> ApplicationNote | None:
+        note = self._store.get(note_id)
+        if note is None or note.user_id != user_id:
+            return None
+        return note
+
+    async def update(self, note: ApplicationNote) -> ApplicationNote:
+        self._store[note.id] = note
+        return note
+
+    async def delete(self, user_id: str, note_id: str) -> None:
+        note = self._store.get(note_id)
+        if note is not None and note.user_id == user_id:
+            del self._store[note_id]
 
 
 class FakeAIClient(AIClient):

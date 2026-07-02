@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api, type Application } from "@/lib/api";
 import KanbanBoard from "@/components/KanbanBoard";
 import SearchBar from "@/components/SearchBar";
+import ApplicationDetailPanel from "@/components/ApplicationDetailPanel";
 
 export default function TrackerPage() {
   const [applications, setApplications] = useState<Application[]>([]);
@@ -13,6 +14,7 @@ export default function TrackerPage() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Application | null>(null);
 
   async function refresh() {
     try {
@@ -96,6 +98,7 @@ export default function TrackerPage() {
         {!loading && applications.length > 0 && (
           <KanbanBoard
             applications={filtered}
+            onCardClick={setSelected}
             onApplicationUpdated={(updated) =>
               setApplications((current) =>
                 current.map((a) => (a.id === updated.id ? updated : a)),
@@ -104,6 +107,13 @@ export default function TrackerPage() {
           />
         )}
       </div>
+
+      {selected && (
+        <ApplicationDetailPanel
+          application={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </main>
   );
 }

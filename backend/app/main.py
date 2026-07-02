@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1.routers import applications, cv, health
+from app.api.v1.routers import applications, cv, health, notes
 from app.core.config import get_settings
 from app.domain.exceptions import (
     AuthenticationError,
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(applications.router, prefix=_API_V1_PREFIX)
+    app.include_router(notes.router, prefix=_API_V1_PREFIX)
     app.include_router(cv.router, prefix=_API_V1_PREFIX)
 
     _register_exception_handlers(app)

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-from app.domain.value_objects import ApplicationStatus
+from app.domain.value_objects import ApplicationStatus, NoteType
 
 
 @dataclass
@@ -18,6 +18,19 @@ class Application:
     role: str
     status: ApplicationStatus
     job_description: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass
+class ApplicationNote:
+    """A timeline entry for an application: a user note or an auto-generated activity."""
+
+    id: str
+    application_id: str
+    user_id: str
+    type: NoteType
+    content: str
     created_at: datetime
     updated_at: datetime
 

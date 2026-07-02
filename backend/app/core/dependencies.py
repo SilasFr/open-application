@@ -16,15 +16,17 @@ from supabase import Client, create_client
 from app.core.config import Settings, get_settings
 from app.domain.ai import AIClient
 from app.domain.auth import TokenVerifier
-from app.domain.repositories import ApplicationRepository
+from app.domain.repositories import ApplicationRepository, NoteRepository
 from app.infrastructure.ai.anthropic_client import AnthropicClient
 from app.infrastructure.ai.prompts import load_prompt
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
+from app.infrastructure.supabase.note_repository import SupabaseNoteRepository
 from app.services.application_service import ApplicationService
 from app.services.cv_tailoring_service import CVTailoringService
+from app.services.note_service import NoteService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -45,8 +47,26 @@ ApplicationRepositoryDep = Annotated[
 ]
 
 
-def get_application_service(repository: ApplicationRepositoryDep) -> ApplicationService:
-    return ApplicationService(repository)
+def get_note_repository(client: SupabaseDep) -> NoteRepository:
+    return SupabaseNoteRepository(client)
+
+
+NoteRepositoryDep = Annotated[NoteRepository, Depends(get_note_repository)]
+
+
+def get_application_service(
+    repository: ApplicationRepositoryDep, note_repository: NoteRepositoryDep
+) -> ApplicationService:
+    return ApplicationService(repository, note_repository)
+
+
+def get_note_service(
+    repository: NoteRepositoryDep, application_repository: ApplicationRepositoryDep
+) -> NoteService:
+    return NoteService(repository, application_repository)
+
+
+NoteServiceDep = Annotated[NoteService, Depends(get_note_service)]
 
 
 def get_ai_client(settings: SettingsDep) -> AIClient:

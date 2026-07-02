@@ -3,7 +3,10 @@
 import { useState } from "react";
 import {
   DndContext,
+  PointerSensor,
   useDroppable,
+  useSensor,
+  useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Application, ApplicationStatus } from "@/lib/api";
@@ -24,6 +27,11 @@ interface KanbanBoardProps {
    * keep its own source-of-truth list in sync (e.g. for search filtering). */
   onApplicationUpdated?: (application: Application) => void;
 }
+
+// Module-scope constant: useSensor/useSensors memoize by reference, so a
+// fresh object literal on every render would defeat that memoization (and
+// trip a React warning inside dnd-kit's internals).
+const POINTER_ACTIVATION_CONSTRAINT = { distance: 8 };
 
 function Column({
   id,
@@ -69,6 +77,14 @@ export default function KanbanBoard({
   const [items, setItems] = useState(applications);
   const [error, setError] = useState<string | null>(null);
   const [prevApplications, setPrevApplications] = useState(applications);
+  // Require a small movement before a drag activates, so a plain click (no
+  // movement) still reaches the card's onClick instead of being captured as
+  // a zero-distance drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: POINTER_ACTIVATION_CONSTRAINT,
+    }),
+  );
   if (prevApplications !== applications) {
     setPrevApplications(applications);
     setItems(applications);
@@ -125,7 +141,7 @@ export default function KanbanBoard({
   return (
     <div>
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <DndContext onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
         <div className="flex flex-col gap-3 sm:flex-row sm:overflow-x-auto sm:pb-2">
           {COLUMN_ORDER.map((columnId) => {
             const cards = byColumn.get(columnId)!;

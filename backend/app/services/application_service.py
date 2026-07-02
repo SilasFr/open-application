@@ -5,21 +5,25 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from app.domain.entities import Application
+from app.domain.entities import Application, ApplicationNote
 from app.domain.exceptions import InvalidStatusTransition, NotFoundError
-from app.domain.repositories import ApplicationRepository
-from app.domain.value_objects import ApplicationStatus, can_transition
+from app.domain.repositories import ApplicationRepository, NoteRepository
+from app.domain.value_objects import ApplicationStatus, NoteType, can_transition
 
 
 class ApplicationService:
     """Use-cases for creating and progressing job applications.
 
-    Depends only on the :class:`ApplicationRepository` interface, so it can run
-    against a real Supabase repository in production and an in-memory fake in tests.
+    Depends only on the :class:`ApplicationRepository` and :class:`NoteRepository`
+    interfaces, so it can run against real Supabase repositories in production and
+    in-memory fakes in tests.
     """
 
-    def __init__(self, repository: ApplicationRepository) -> None:
+    def __init__(
+        self, repository: ApplicationRepository, note_repository: NoteRepository
+    ) -> None:
         self._repository = repository
+        self._note_repository = note_repository
 
     async def create(
         self,
@@ -62,7 +66,22 @@ class ApplicationService:
             )
         application.status = new_status
         application.updated_at = datetime.now(UTC)
-        return await self._repository.update(application)
+        updated = await self._repository.update(application)
+        await self._record_status_change_activity(updated)
+        return updated
+
+    async def _record_status_change_activity(self, application: Application) -> None:
+        now = datetime.now(UTC)
+        note = ApplicationNote(
+            id=str(uuid4()),
+            application_id=application.id,
+            user_id=application.user_id,
+            type=NoteType.ACTIVITY,
+            content=f"Moved to {application.status.value.capitalize()}",
+            created_at=now,
+            updated_at=now,
+        )
+        await self._note_repository.add(note)
 
     async def delete(self, user_id: str, application_id: str) -> None:
         # Ensures the application exists and is owned by the caller before deleting.

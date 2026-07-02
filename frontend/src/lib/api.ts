@@ -48,6 +48,17 @@ export interface TailoredCV {
   created_at: string;
 }
 
+export type NoteType = "note" | "activity" | "email" | "call" | "interview";
+
+export interface ApplicationNote {
+  id: string;
+  application_id: string;
+  type: NoteType;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
@@ -91,5 +102,25 @@ export const api = {
     request<TailoredCV>("/api/v1/cv/tailor", {
       method: "POST",
       body: JSON.stringify(input),
+    }),
+
+  listNotes: (applicationId: string) =>
+    request<ApplicationNote[]>(`/api/v1/applications/${applicationId}/notes`),
+
+  createNote: (applicationId: string, content: string) =>
+    request<ApplicationNote>(`/api/v1/applications/${applicationId}/notes`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    }),
+
+  updateNote: (applicationId: string, noteId: string, content: string) =>
+    request<ApplicationNote>(
+      `/api/v1/applications/${applicationId}/notes/${noteId}`,
+      { method: "PATCH", body: JSON.stringify({ content }) },
+    ),
+
+  deleteNote: (applicationId: string, noteId: string) =>
+    request<void>(`/api/v1/applications/${applicationId}/notes/${noteId}`, {
+      method: "DELETE",
     }),
 };

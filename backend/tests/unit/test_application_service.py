@@ -5,15 +5,19 @@ from __future__ import annotations
 import pytest
 
 from app.domain.exceptions import InvalidStatusTransition, NotFoundError
-from app.domain.value_objects import ApplicationStatus
+from app.domain.value_objects import ApplicationStatus, NoteType
 from app.services.application_service import ApplicationService
-from tests.fakes import InMemoryApplicationRepository
+from tests.fakes import InMemoryApplicationRepository, InMemoryNoteRepository
 
 USER = "user-1"
 
 
-def _service() -> ApplicationService:
-    return ApplicationService(InMemoryApplicationRepository())
+def _service(
+    note_repository: InMemoryNoteRepository | None = None,
+) -> ApplicationService:
+    return ApplicationService(
+        InMemoryApplicationRepository(), note_repository or InMemoryNoteRepository()
+    )
 
 
 async def test_create_defaults_to_saved_and_is_listed() -> None:
@@ -68,3 +72,27 @@ async def test_delete_then_get_raises() -> None:
 
     with pytest.raises(NotFoundError):
         await service.get(USER, created.id)
+
+
+async def test_status_change_records_timeline_activity() -> None:
+    notes = InMemoryNoteRepository()
+    service = _service(notes)
+    created = await service.create(user_id=USER, company="Acme", role="Engineer")
+
+    await service.change_status(USER, created.id, ApplicationStatus.APPLIED)
+
+    timeline = await notes.list_for_application(USER, created.id)
+    assert len(timeline) == 1
+    assert timeline[0].type is NoteType.ACTIVITY
+    assert timeline[0].content == "Moved to Applied"
+
+
+async def test_invalid_status_transition_records_no_activity() -> None:
+    notes = InMemoryNoteRepository()
+    service = _service(notes)
+    created = await service.create(user_id=USER, company="Acme", role="Engineer")
+
+    with pytest.raises(InvalidStatusTransition):
+        await service.change_status(USER, created.id, ApplicationStatus.OFFER)
+
+    assert await notes.list_for_application(USER, created.id) == []

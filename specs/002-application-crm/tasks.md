@@ -73,32 +73,32 @@ note (appears with timestamp), edit it ("edited" marker), reload → persists.
 
 ### Domain & test scaffolding
 
-- [ ] T011 [P] [US2] Add `ApplicationNote` entity in `backend/app/domain/entities.py`
-- [ ] T012 [P] [US2] Add `NoteType` enum (note/activity/email/call/interview) in `backend/app/domain/value_objects.py`
-- [ ] T013 [US2] Add `NoteRepository` ABC in `backend/app/domain/repositories.py`
-- [ ] T014 [US2] Add `InMemoryNoteRepository` fake in `backend/tests/fakes.py`
+- [X] T011 [P] [US2] Add `ApplicationNote` entity in `backend/app/domain/entities.py`
+- [X] T012 [P] [US2] Add `NoteType` enum (note/activity/email/call/interview) in `backend/app/domain/value_objects.py`
+- [X] T013 [US2] Add `NoteRepository` ABC in `backend/app/domain/repositories.py`
+- [X] T014 [US2] Add `InMemoryNoteRepository` fake in `backend/tests/fakes.py`
 
 ### Tests (write before implementation)
 
-- [ ] T015 [P] [US2] Unit tests for `NoteService` (create/list newest-first/edit/delete + parent-ownership 404) in `backend/tests/unit/test_note_service.py`
-- [ ] T016 [P] [US2] Unit test: `ApplicationService.change_status` appends an `activity` note in `backend/tests/unit/test_application_service.py`
-- [ ] T017 [P] [US2] API tests for notes routes (201/200/204/401/404/422) in `backend/tests/integration/test_notes_api.py`
+- [X] T015 [P] [US2] Unit tests for `NoteService` (create/list newest-first/edit/delete + parent-ownership 404) in `backend/tests/unit/test_note_service.py`
+- [X] T016 [P] [US2] Unit test: `ApplicationService.change_status` appends an `activity` note in `backend/tests/unit/test_application_service.py`
+- [X] T017 [P] [US2] API tests for notes routes (201/200/204/401/404/422) in `backend/tests/integration/test_notes_api.py`
 
 ### Implementation
 
-- [ ] T018 [US2] `SupabaseNoteRepository` in `backend/app/infrastructure/supabase/note_repository.py` (anyio.to_thread wrapper, per `application_repository.py`)
-- [ ] T019 [US2] `NoteService` in `backend/app/services/note_service.py` (injects `NoteRepository` + `ApplicationRepository` for ownership)
-- [ ] T020 [US2] Modify `ApplicationService.change_status` to append an activity note; add the `NoteRepository` constructor dependency in `backend/app/services/application_service.py`
-- [ ] T021 [P] [US2] Note DTOs (`NoteCreate`/`NoteUpdate`/`NoteRead`) in `backend/app/schemas/note.py`
-- [ ] T022 [US2] `notes` router in `backend/app/api/v1/routers/notes.py` and register it in `backend/app/main.py`
-- [ ] T023 [US2] Wire `NoteRepository`/`NoteService` and the new `ApplicationService` dependency in `backend/app/core/dependencies.py`; update overrides in `backend/tests/integration/conftest.py`
+- [X] T018 [US2] `SupabaseNoteRepository` in `backend/app/infrastructure/supabase/note_repository.py` (anyio.to_thread wrapper, per `application_repository.py`)
+- [X] T019 [US2] `NoteService` in `backend/app/services/note_service.py` (injects `NoteRepository` + `ApplicationRepository` for ownership)
+- [X] T020 [US2] Modify `ApplicationService.change_status` to append an activity note; add the `NoteRepository` constructor dependency in `backend/app/services/application_service.py`
+- [X] T021 [P] [US2] Note DTOs (`NoteCreate`/`NoteUpdate`/`NoteRead`) in `backend/app/schemas/note.py`
+- [X] T022 [US2] `notes` router in `backend/app/api/v1/routers/notes.py` and register it in `backend/app/main.py`
+- [X] T023 [US2] Wire `NoteRepository`/`NoteService` and the new `ApplicationService` dependency in `backend/app/core/dependencies.py`; update overrides in `backend/tests/integration/conftest.py`
 
 ### Frontend
 
-- [ ] T024 [P] [US2] Add `ApplicationNote` type + note API methods (list/create/update/delete) in `frontend/src/lib/api.ts`
-- [ ] T025 [US2] `ApplicationDetailPanel` slide-over shell in `frontend/src/components/ApplicationDetailPanel.tsx`
-- [ ] T026 [US2] `NotesTimeline` component (reverse-chronological, add/edit/delete, "edited" marker) in `frontend/src/components/NotesTimeline.tsx`
-- [ ] T027 [US2] Open the panel on card click (from `ApplicationCard`/`KanbanBoard`) and render `NotesTimeline`
+- [X] T024 [P] [US2] Add `ApplicationNote` type + note API methods (list/create/update/delete) in `frontend/src/lib/api.ts`
+- [X] T025 [US2] `ApplicationDetailPanel` slide-over shell in `frontend/src/components/ApplicationDetailPanel.tsx`
+- [X] T026 [US2] `NotesTimeline` component (reverse-chronological, add/edit/delete, "edited" marker) in `frontend/src/components/NotesTimeline.tsx`
+- [X] T027 [US2] Open the panel on card click (from `ApplicationCard`/`KanbanBoard`) and render `NotesTimeline`
 
 **Checkpoint**: US1 + US2 both work independently.
 
