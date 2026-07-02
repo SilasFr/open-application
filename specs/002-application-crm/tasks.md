@@ -155,11 +155,11 @@ persists.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T052 [P] Run backend gates: `cd backend && uv run ruff check . && uv run mypy app && uv run pytest` (all green)
-- [ ] T053 [P] Run frontend gates: `cd frontend && npm run lint && npm run build`
-- [ ] T054 Apply the migration to the database (`npx supabase db push`) and verify tables, RLS, and cascade delete
-- [ ] T055 Make the board responsive on mobile (column horizontal-scroll/collapse) in `frontend/src/components/KanbanBoard.tsx`
-- [ ] T056 Execute [quickstart.md](quickstart.md) end-to-end (US1–US4 + isolation + cascade checks)
+- [X] T052 [P] Run backend gates: `cd backend && uv run ruff check . && uv run mypy app && uv run pytest` (all green)
+- [X] T053 [P] Run frontend gates: `cd frontend && npm run lint && npm run build`
+- [X] T054 Apply the migration to the database (`npx supabase db push`) and verify tables, RLS, and cascade delete
+- [X] T055 Make the board responsive on mobile (column horizontal-scroll/collapse) in `frontend/src/components/KanbanBoard.tsx`
+- [X] T056 Execute [quickstart.md](quickstart.md) end-to-end (US1–US4 + isolation + cascade checks)
 
 ---
 
