@@ -1,0 +1,6 @@
+hooks:
+  before_specify:
+    - extension: "git"
+      command: "speckit.git.branch"
+      description: "Creates and switches to a git feature branch before specification"
+      optional: false
