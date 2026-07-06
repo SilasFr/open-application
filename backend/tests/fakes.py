@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import json
+
 from app.domain.ai import AIClient
 from app.domain.entities import (
+    CV,
     Application,
     ApplicationContact,
     ApplicationNote,
     ApplicationTask,
+    TailoredCV,
 )
 from app.domain.repositories import (
     ApplicationRepository,
     ContactRepository,
+    CVRepository,
     NoteRepository,
+    TailoredCVRepository,
     TaskRepository,
 )
 
@@ -153,15 +159,93 @@ class InMemoryTaskRepository(TaskRepository):
             del self._store[task_id]
 
 
-class FakeAIClient(AIClient):
-    """Returns a canned response and records the last call for assertions."""
+class InMemoryCVRepository(CVRepository):
+    """Stores at most one base resume per user_id. No network, no real storage —
+    uploaded bytes are recorded for assertions rather than persisted anywhere."""
 
-    def __init__(self, response: str = "# Tailored CV\n\nTailored content.") -> None:
+    def __init__(self) -> None:
+        self._store: dict[str, CV] = {}
+        self.uploaded_files: dict[str, tuple[bytes, str]] = {}
+
+    async def get_current(self, user_id: str) -> CV | None:
+        return self._store.get(user_id)
+
+    async def replace(self, cv: CV, file_bytes: bytes, content_type: str) -> CV:
+        await self.delete(cv.user_id)
+        self._store[cv.user_id] = cv
+        self.uploaded_files[cv.storage_path] = (file_bytes, content_type)
+        return cv
+
+    async def delete(self, user_id: str) -> None:
+        existing = self._store.pop(user_id, None)
+        if existing is not None:
+            self.uploaded_files.pop(existing.storage_path, None)
+
+
+class InMemoryTailoredCVRepository(TailoredCVRepository):
+    """Stores tailored CVs in a dict. No network, deterministic ordering by insert."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, TailoredCV] = {}
+
+    async def add(self, tailored: TailoredCV) -> TailoredCV:
+        self._store[tailored.id] = tailored
+        return tailored
+
+    async def get(self, user_id: str, tailored_id: str) -> TailoredCV | None:
+        tailored = self._store.get(tailored_id)
+        if tailored is None or tailored.user_id != user_id:
+            return None
+        return tailored
+
+    async def update(self, tailored: TailoredCV) -> TailoredCV:
+        self._store[tailored.id] = tailored
+        return tailored
+
+    async def list_for_user(self, user_id: str) -> list[TailoredCV]:
+        items = [t for t in self._store.values() if t.user_id == user_id]
+        return sorted(items, key=lambda t: t.created_at, reverse=True)
+
+
+# A minimal, valid structured-output JSON payload — the default canned response
+# for FakeAIClient, so happy-path tests don't each have to build their own JSON.
+DEFAULT_STRUCTURED_AI_RESPONSE = json.dumps(
+    {
+        "sections": [
+            {
+                "id": "summary",
+                "heading": "Summary",
+                "body": "Experienced engineer with a track record of shipping.",
+                "changed": True,
+                "explanation": "Reworded to emphasize experience relevant to the role.",
+            }
+        ]
+    }
+)
+
+
+class FakeAIClient(AIClient):
+    """Returns a canned response and records the last call for assertions.
+
+    ``error``, when set, is raised instead — simulating a vendor SDK failure
+    (auth, rate limit, network, outage) to exercise the AIGenerationError path
+    without depending on any real provider's exception types.
+    """
+
+    def __init__(
+        self,
+        response: str = DEFAULT_STRUCTURED_AI_RESPONSE,
+        *,
+        error: Exception | None = None,
+    ) -> None:
         self._response = response
+        self._error = error
         self.last_system: str | None = None
         self.last_prompt: str | None = None
 
     async def generate(self, *, system: str, prompt: str) -> str:
         self.last_system = system
         self.last_prompt = prompt
+        if self._error is not None:
+            raise self._error
         return self._response

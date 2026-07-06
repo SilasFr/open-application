@@ -17,3 +17,18 @@ class NotFoundError(DomainError):
 
 class InvalidStatusTransition(DomainError):
     """An application status change is not permitted by the lifecycle rules."""
+
+
+class UnsupportedFileError(DomainError):
+    """An uploaded file is the wrong type, too large, or could not be parsed."""
+
+
+class InvalidAIResponseError(DomainError):
+    """The AI client returned a response that failed structured-output validation."""
+
+
+class AIGenerationError(DomainError):
+    """The configured AI provider failed outright (auth, rate limit, network,
+    outage, etc.) while generating a response. Deliberately provider-agnostic —
+    the service layer must not know or care which vendor raised the underlying
+    error (Constitution Principle III/V: AI is abstracted behind AIClient)."""

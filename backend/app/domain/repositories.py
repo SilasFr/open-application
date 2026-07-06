@@ -10,10 +10,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 from app.domain.entities import (
+    CV,
     Application,
     ApplicationContact,
     ApplicationNote,
     ApplicationTask,
+    TailoredCV,
 )
 
 
@@ -121,3 +123,48 @@ class TaskRepository(ABC):
     @abstractmethod
     async def delete(self, user_id: str, task_id: str) -> None:
         """Remove an owned task. No-op if it does not exist."""
+
+
+class CVRepository(ABC):
+    """Persistence contract for a user's single, current base resume.
+
+    Only one :class:`~app.domain.entities.CV` row exists per ``user_id`` at a
+    time (research.md #3) — enforced here via delete-then-insert semantics on
+    ``replace``, not by a schema flag.
+    """
+
+    @abstractmethod
+    async def get_current(self, user_id: str) -> CV | None:
+        """Return the user's current base resume, or ``None`` if none is saved."""
+
+    @abstractmethod
+    async def replace(self, cv: CV, file_bytes: bytes, content_type: str) -> CV:
+        """Delete any existing base resume (row + Storage object) for
+        ``cv.user_id``, store ``file_bytes`` at ``cv.storage_path``, insert
+        ``cv``, and return the stored entity."""
+
+    @abstractmethod
+    async def delete(self, user_id: str) -> None:
+        """Remove the user's current base resume (row + Storage object). No-op
+        if none exists."""
+
+
+class TailoredCVRepository(ABC):
+    """Persistence contract for :class:`~app.domain.entities.TailoredCV`."""
+
+    @abstractmethod
+    async def add(self, tailored: TailoredCV) -> TailoredCV:
+        """Persist a newly generated tailored CV and return the stored entity."""
+
+    @abstractmethod
+    async def get(self, user_id: str, tailored_id: str) -> TailoredCV | None:
+        """Return the owned tailored CV, or ``None`` if it does not exist."""
+
+    @abstractmethod
+    async def update(self, tailored: TailoredCV) -> TailoredCV:
+        """Persist changes to an existing tailored CV (e.g. attaching it to an
+        application) and return it."""
+
+    @abstractmethod
+    async def list_for_user(self, user_id: str) -> list[TailoredCV]:
+        """Return all tailored CVs owned by ``user_id`` (newest first)."""

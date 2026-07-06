@@ -9,8 +9,10 @@ from fastapi.responses import JSONResponse
 from app.api.v1.routers import applications, contacts, cv, health, notes, tasks
 from app.core.config import get_settings
 from app.domain.exceptions import (
+    AIGenerationError,
     AuthenticationError,
     DomainError,
+    InvalidAIResponseError,
     InvalidStatusTransition,
     NotFoundError,
 )
@@ -38,6 +40,18 @@ def _register_exception_handlers(app: FastAPI) -> None:
         _: Request, exc: InvalidStatusTransition
     ) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.exception_handler(InvalidAIResponseError)
+    async def _handle_invalid_ai_response(
+        _: Request, exc: InvalidAIResponseError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+    @app.exception_handler(AIGenerationError)
+    async def _handle_ai_generation_error(
+        _: Request, exc: AIGenerationError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=502, content={"detail": str(exc)})
 
     @app.exception_handler(DomainError)
     async def _handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:

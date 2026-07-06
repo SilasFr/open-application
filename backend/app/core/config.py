@@ -28,8 +28,10 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_audience: str = "authenticated"
 
+    ai_provider: str = "gemini"
     anthropic_api_key: str = ""
-    ai_model: str = "claude-sonnet-5"
+    gemini_api_key: str = ""
+    ai_model: str = "gemini-2.0-flash"
     ai_max_tokens: int = Field(default=4096, gt=0)
 
     @property

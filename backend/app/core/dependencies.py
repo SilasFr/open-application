@@ -19,20 +19,28 @@ from app.domain.auth import TokenVerifier
 from app.domain.repositories import (
     ApplicationRepository,
     ContactRepository,
+    CVRepository,
     NoteRepository,
+    TailoredCVRepository,
     TaskRepository,
 )
 from app.infrastructure.ai.anthropic_client import AnthropicClient
+from app.infrastructure.ai.gemini_client import GeminiClient
 from app.infrastructure.ai.prompts import load_prompt
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
 from app.infrastructure.supabase.contact_repository import SupabaseContactRepository
+from app.infrastructure.supabase.cv_repository import (
+    SupabaseCVRepository,
+    SupabaseTailoredCVRepository,
+)
 from app.infrastructure.supabase.note_repository import SupabaseNoteRepository
 from app.infrastructure.supabase.task_repository import SupabaseTaskRepository
 from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
+from app.services.cv_service import CVService
 from app.services.cv_tailoring_service import CVTailoringService
 from app.services.note_service import NoteService
 from app.services.task_service import TaskService
@@ -111,8 +119,14 @@ TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
 
 def get_ai_client(settings: SettingsDep) -> AIClient:
-    return AnthropicClient(
-        api_key=settings.anthropic_api_key,
+    if settings.ai_provider == "anthropic":
+        return AnthropicClient(
+            api_key=settings.anthropic_api_key,
+            model=settings.ai_model,
+            max_tokens=settings.ai_max_tokens,
+        )
+    return GeminiClient(
+        api_key=settings.gemini_api_key,
         model=settings.ai_model,
         max_tokens=settings.ai_max_tokens,
     )
@@ -136,13 +150,47 @@ def get_token_verifier() -> TokenVerifier:
 TokenVerifierDep = Annotated[TokenVerifier, Depends(get_token_verifier)]
 
 
+def get_cv_repository(client: SupabaseDep) -> CVRepository:
+    return SupabaseCVRepository(client)
+
+
+CVRepositoryDep = Annotated[CVRepository, Depends(get_cv_repository)]
+
+
+def get_tailored_cv_repository(client: SupabaseDep) -> TailoredCVRepository:
+    return SupabaseTailoredCVRepository(client)
+
+
+TailoredCVRepositoryDep = Annotated[
+    TailoredCVRepository, Depends(get_tailored_cv_repository)
+]
+
+
+def get_cv_service(repository: CVRepositoryDep) -> CVService:
+    return CVService(repository)
+
+
+CVServiceDep = Annotated[CVService, Depends(get_cv_service)]
+
+
 @lru_cache
-def _cv_tailoring_prompt() -> str:
-    return load_prompt("cv_tailoring")
+def _cv_tailoring_structured_prompt() -> str:
+    return load_prompt("cv_tailoring_structured")
 
 
-def get_cv_tailoring_service(ai_client: AIClientDep) -> CVTailoringService:
-    return CVTailoringService(ai_client, _cv_tailoring_prompt())
+def get_cv_tailoring_service(
+    ai_client: AIClientDep,
+    cv_repository: CVRepositoryDep,
+    tailored_cv_repository: TailoredCVRepositoryDep,
+    application_repository: ApplicationRepositoryDep,
+) -> CVTailoringService:
+    return CVTailoringService(
+        ai_client,
+        _cv_tailoring_structured_prompt(),
+        cv_repository,
+        tailored_cv_repository,
+        application_repository,
+    )
 
 
 ApplicationServiceDep = Annotated[ApplicationService, Depends(get_application_service)]

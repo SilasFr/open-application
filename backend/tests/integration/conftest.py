@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.core.dependencies import (
     get_application_service,
     get_contact_service,
+    get_cv_service,
     get_cv_tailoring_service,
     get_note_service,
     get_task_service,
@@ -19,6 +20,7 @@ from app.core.security import get_current_user_id
 from app.main import create_app
 from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
+from app.services.cv_service import CVService
 from app.services.cv_tailoring_service import CVTailoringService
 from app.services.note_service import NoteService
 from app.services.task_service import TaskService
@@ -26,11 +28,16 @@ from tests.fakes import (
     FakeAIClient,
     InMemoryApplicationRepository,
     InMemoryContactRepository,
+    InMemoryCVRepository,
     InMemoryNoteRepository,
+    InMemoryTailoredCVRepository,
     InMemoryTaskRepository,
 )
 
-_PROMPT = "CV:\n{{CV}}\n\nJD:\n{{JOB_DESCRIPTION}}"
+_PROMPT = (
+    "CV:\n{{CV}}\n\nJD:\n{{JOB_DESCRIPTION}}\n\n"
+    "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\n\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+)
 _TEST_USER_ID = "user-api"
 
 
@@ -40,6 +47,9 @@ def _override_services(app: FastAPI) -> None:
     note_repository = InMemoryNoteRepository()
     contact_repository = InMemoryContactRepository()
     task_repository = InMemoryTaskRepository()
+    cv_repository = InMemoryCVRepository()
+    tailored_repository = InMemoryTailoredCVRepository()
+
     app.dependency_overrides[get_application_service] = lambda: ApplicationService(
         repository, note_repository
     )
@@ -52,8 +62,9 @@ def _override_services(app: FastAPI) -> None:
     app.dependency_overrides[get_task_service] = lambda: TaskService(
         task_repository, repository
     )
+    app.dependency_overrides[get_cv_service] = lambda: CVService(cv_repository)
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
-        FakeAIClient(response="# Tailored"), _PROMPT
+        FakeAIClient(), _PROMPT, cv_repository, tailored_repository, repository
     )
 
 
