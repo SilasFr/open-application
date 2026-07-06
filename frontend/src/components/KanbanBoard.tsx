@@ -3,11 +3,13 @@
 import { useState } from "react";
 import {
   DndContext,
+  KeyboardSensor,
   PointerSensor,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import type { Application, ApplicationStatus } from "@/lib/api";
 import { api } from "@/lib/api";
@@ -33,38 +35,71 @@ interface KanbanBoardProps {
 // trip a React warning inside dnd-kit's internals).
 const POINTER_ACTIVATION_CONSTRAINT = { distance: 8 };
 
+const STATUS_DOT: Record<BoardColumnId, string> = {
+  saved: "var(--status-saved-dot)",
+  applied: "var(--status-applied-dot)",
+  interviewing: "var(--status-interviewing-dot)",
+  offer: "var(--status-offer-dot)",
+  closed: "var(--status-withdrawn-dot)",
+};
+
 function Column({
   id,
-  children,
   count,
+  legal,
+  dragging,
+  children,
 }: {
   id: BoardColumnId;
-  children: React.ReactNode;
   count: number;
+  legal: boolean;
+  dragging: boolean;
+  children: React.ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
+  const highlight = isOver && legal;
+
   return (
     <div
       ref={setNodeRef}
-      className={`flex min-h-[200px] w-full flex-col gap-2 rounded-xl border p-3 sm:w-56 ${
-        isOver
-          ? "border-blue-400 bg-blue-50 dark:bg-blue-950/20"
-          : "border-gray-200 dark:border-gray-800"
-      }`}
+      className="flex min-h-[280px] w-full flex-1 flex-col gap-2 rounded-[var(--radius-token-lg)] border p-3 transition-[background-color,border-color,opacity] duration-150 ease-out sm:min-w-[200px]"
+      style={{
+        borderColor: highlight
+          ? "rgb(163 230 53 / 0.5)"
+          : "var(--border-default)",
+        background: highlight
+          ? "rgb(132 204 22 / 0.10)"
+          : "rgb(148 163 184 / 0.04)",
+        opacity: dragging && !legal ? 0.45 : 1,
+      }}
     >
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-sm font-semibold">{COLUMN_LABELS[id]}</h2>
-        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+        <h2 className="m-0 flex items-center gap-2 text-xs font-semibold tracking-[var(--tracking-wide)] text-[color:var(--text-primary)] uppercase">
+          <span
+            className="inline-block h-[7px] w-[7px] rounded-full"
+            style={{ background: STATUS_DOT[id] }}
+          />
+          {COLUMN_LABELS[id]}
+        </h2>
+        <span className="rounded-[var(--radius-token-full)] bg-[var(--badge-count-bg)] px-2 py-0.5 text-xs font-medium text-[color:var(--badge-count-text)]">
           {count}
         </span>
       </div>
-      <div className="flex flex-col gap-2">{children}</div>
+      <div className="flex flex-col gap-2">
+        {count === 0 && (
+          <p className="m-0 my-3 mx-1 text-xs text-[color:var(--text-tertiary)]">
+            Nothing here yet.
+          </p>
+        )}
+        {children}
+      </div>
     </div>
   );
 }
 
-/** Kanban board over an application list: drag a card between columns, or use
- * its status <select>, to change status (validated server-side). */
+/** Kanban board over an application list: drag a card between columns
+ * (validated server-side) or, for the WCAG 2.1 AA non-drag equivalent, use
+ * the detail panel's one-tap transition buttons. */
 export default function KanbanBoard({
   applications,
   onCardClick,
@@ -77,6 +112,7 @@ export default function KanbanBoard({
   const [items, setItems] = useState(applications);
   const [error, setError] = useState<string | null>(null);
   const [prevApplications, setPrevApplications] = useState(applications);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   // Require a small movement before a drag activates, so a plain click (no
   // movement) still reaches the card's onClick instead of being captured as
   // a zero-distance drag.
@@ -84,6 +120,10 @@ export default function KanbanBoard({
     useSensor(PointerSensor, {
       activationConstraint: POINTER_ACTIVATION_CONSTRAINT,
     }),
+    // Keyboard-operable drag-and-drop (research.md #9, FR-011a): focus a
+    // card, press Space/Enter to pick it up, arrow keys to move between
+    // droppable columns, Space/Enter again to drop, Escape to cancel.
+    useSensor(KeyboardSensor),
   );
   if (prevApplications !== applications) {
     setPrevApplications(applications);
@@ -96,6 +136,10 @@ export default function KanbanBoard({
   for (const app of items) {
     byColumn.get(statusToColumn(app.status))!.push(app);
   }
+
+  const draggingApplication = draggingId
+    ? items.find((a) => a.id === draggingId)
+    : undefined;
 
   async function moveTo(application: Application, target: ApplicationStatus) {
     const previous = application.status;
@@ -121,7 +165,13 @@ export default function KanbanBoard({
     }
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    setError(null);
+    setDraggingId(String(event.active.id));
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setDraggingId(null);
     const { active, over } = event;
     if (!over) return;
     const application = items.find((a) => a.id === active.id);
@@ -138,21 +188,42 @@ export default function KanbanBoard({
     void moveTo(application, target);
   }
 
+  function handleDragCancel() {
+    setDraggingId(null);
+  }
+
   return (
     <div>
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      {error && (
+        <p className="mb-3 text-sm text-[color:var(--text-error)]">{error}</p>
+      )}
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:overflow-x-auto sm:pb-2">
           {COLUMN_ORDER.map((columnId) => {
             const cards = byColumn.get(columnId)!;
+            const legal =
+              draggingApplication == null
+                ? true
+                : columnToTargetStatus(columnId, draggingApplication.status) !=
+                  null;
             return (
-              <Column key={columnId} id={columnId} count={cards.length}>
+              <Column
+                key={columnId}
+                id={columnId}
+                count={cards.length}
+                legal={legal}
+                dragging={draggingApplication != null}
+              >
                 {cards.map((application) => (
                   <ApplicationCard
                     key={application.id}
                     application={application}
                     onClick={() => onCardClick?.(application)}
-                    onStatusChange={(status) => void moveTo(application, status)}
                   />
                 ))}
               </Column>

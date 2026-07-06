@@ -1,21 +1,20 @@
 "use client";
 
 import { useDraggable } from "@dnd-kit/core";
-import type { Application, ApplicationStatus } from "@/lib/api";
-import { legalTargetStatuses } from "@/lib/board";
+import type { Application } from "@/lib/api";
+import { daysSince, isStale, relativeTime } from "@/lib/stats";
 
 interface ApplicationCardProps {
   application: Application;
-  onStatusChange: (status: ApplicationStatus) => void;
   onClick?: () => void;
 }
 
-/** A draggable card for one application. Also offers a status <select> as a
- * non-drag control (FR-CRM-002: drag OR controls within the card) — the only
- * way to reach a specific terminal status (accepted/rejected/withdrawn). */
+/** A draggable card for one application (User Story 1/3). Status changes now
+ * happen via drag-and-drop or the detail panel's one-tap transition buttons
+ * (see ApplicationDetailPanel) — the required WCAG 2.1 AA non-drag
+ * equivalent (FR-011a) — so this card carries no status control itself. */
 export default function ApplicationCard({
   application,
-  onStatusChange,
   onClick,
 }: ApplicationCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
@@ -28,44 +27,44 @@ export default function ApplicationCard({
       }
     : undefined;
 
-  const options = legalTargetStatuses(application.status);
+  const stale = isStale(application);
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-xl border border-gray-200 bg-white p-3 shadow-sm dark:border-gray-800 dark:bg-black ${
-        isDragging ? "opacity-50" : ""
+      {...listeners}
+      {...attributes}
+      onClick={onClick}
+      className={`cursor-grab touch-none rounded-[var(--radius-token-lg)] border border-[var(--border-default)] bg-[var(--surface-card)] p-[var(--padding-card)] shadow-[var(--shadow-sm)] transition-[border-color,box-shadow] duration-150 ease-out hover:border-[rgb(163_230_53_/_0.5)] hover:shadow-[var(--shadow-glow)] active:cursor-grabbing ${
+        isDragging ? "opacity-40" : ""
       }`}
     >
-      <div
-        {...listeners}
-        {...attributes}
-        onClick={onClick}
-        className="cursor-grab touch-none active:cursor-grabbing"
-      >
-        <p className="font-medium">{application.role}</p>
-        <p className="text-sm text-gray-500">{application.company}</p>
+      <div className="flex items-start gap-2">
+        <p className="m-0 flex-1 text-sm leading-snug font-medium text-[color:var(--text-primary)]">
+          {application.role}
+        </p>
+        {stale && (
+          <span
+            title={`No activity in ${daysSince(application.updated_at)} days`}
+            className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-[var(--status-interviewing-dot)]"
+          />
+        )}
       </div>
-      {options.length > 0 && (
-        <select
-          value=""
-          onChange={(e) => {
-            if (e.target.value) {
-              onStatusChange(e.target.value as ApplicationStatus);
-            }
-          }}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-transparent"
-        >
-          <option value="">Move to…</option>
-          {options.map((status) => (
-            <option key={status} value={status}>
-              {status}
-            </option>
-          ))}
-        </select>
-      )}
+      <p className="m-0 mt-0.5 text-sm text-[color:var(--text-secondary)]">
+        {application.company}
+      </p>
+      <p
+        className={`m-0 mt-2 text-xs ${
+          stale
+            ? "text-[color:var(--status-interviewing-text)]"
+            : "text-[color:var(--text-tertiary)]"
+        }`}
+      >
+        {stale
+          ? `No activity in ${daysSince(application.updated_at)}d`
+          : `Updated ${relativeTime(application.updated_at)}`}
+      </p>
     </div>
   );
 }
