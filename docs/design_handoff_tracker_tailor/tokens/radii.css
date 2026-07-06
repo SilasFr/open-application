@@ -1,0 +1,12 @@
+/* ============================================================
+   Open Application — Border Radius Tokens
+   The app uses two primary radii: lg (8px) and xl (12px),
+   plus full (9999px) for badges and count chips.
+   ============================================================ */
+
+:root {
+  --radius-sm:    0.25rem;   /* 4px  — small inline elements */
+  --radius-md:    0.5rem;    /* 8px  — inputs, buttons: rounded-lg */
+  --radius-lg:    0.75rem;   /* 12px — cards, columns: rounded-xl */
+  --radius-full:  9999px;    /* badges, count pills: rounded-full */
+}

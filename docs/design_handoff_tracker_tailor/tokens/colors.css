@@ -1,0 +1,229 @@
+/* ============================================================
+   Open Application — Color Tokens
+   "Slate Night" direction: dark-first layered slate gradients
+   with a lime signal accent. Light mode fully supported via
+   prefers-color-scheme override (dark is the default).
+   ============================================================ */
+
+:root {
+  /* ── Neutrals (Tailwind slate) ── */
+  --color-white:     #ffffff;
+  --color-black:     #020617;
+
+  --color-slate-50:  #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+  --color-slate-950: #020617;
+
+  /* Legacy gray aliases (kept for backwards compatibility) */
+  --color-gray-50:  var(--color-slate-50);
+  --color-gray-100: var(--color-slate-100);
+  --color-gray-200: var(--color-slate-200);
+  --color-gray-300: var(--color-slate-300);
+  --color-gray-400: var(--color-slate-400);
+  --color-gray-500: var(--color-slate-500);
+  --color-gray-600: var(--color-slate-600);
+  --color-gray-700: var(--color-slate-700);
+  --color-gray-800: var(--color-slate-800);
+  --color-gray-900: var(--color-slate-900);
+  --color-dark-bg:  var(--color-slate-950);
+  --color-dark-fg:  var(--color-slate-100);
+
+  /* ── Accent (lime) ── */
+  --color-accent-300: #bef264;
+  --color-accent-400: #a3e635;
+  --color-accent-500: #84cc16;
+  --color-accent-600: #65a30d;
+  --color-accent-ink: #1a2e05;   /* text on lime fills */
+
+  /* ── Status / feedback ── */
+  --color-blue-400:  #60a5fa;
+  --color-blue-600:  #2563eb;
+  --color-red-600:   #dc2626;
+  --color-green-600: #16a34a;
+
+  /* ── Gradients ── */
+  --gradient-page:   linear-gradient(160deg, #020617 0%, #0f172a 55%, #1e293b 100%); /* @kind color */
+  --gradient-hero:   linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #334155 100%); /* @kind color */
+  --gradient-accent: linear-gradient(135deg, #a3e635 0%, #65a30d 100%); /* @kind color */
+  --gradient-panel:  linear-gradient(180deg, rgb(30 41 59 / 0.85) 0%, rgb(15 23 42 / 0.95) 100%); /* @kind color */
+  --glow-accent:     radial-gradient(600px 320px at 75% -10%, rgb(132 204 22 / 0.16), transparent 70%); /* @kind color */
+
+  /* ── Kanban column drag-over accent ── */
+  --color-drag-over-border: var(--color-accent-400);
+  --color-drag-over-bg:     rgb(132 204 22 / 0.10);
+
+  /* ── OAuth brand colors (inline SVGs in login page) ── */
+  --color-google-blue:    #4285F4;
+  --color-google-green:   #34A853;
+  --color-google-yellow:  #FBBC05;
+  --color-google-red:     #EA4335;
+  --color-linkedin-blue:  #0A66C2;
+
+  /* ── Semantic surface aliases (dark = default) ── */
+  --surface-page:      var(--color-slate-900);
+  --surface-card:      rgb(30 41 59 / 0.55);
+  --surface-raised:    var(--color-slate-800);
+  --surface-overlay:   rgb(2 6 23 / 0.60);
+  --surface-input:     rgb(2 6 23 / 0.40);
+
+  /* ── Semantic text aliases (dark = default) ── */
+  --text-primary:      var(--color-slate-100);
+  --text-secondary:    var(--color-slate-400);
+  --text-tertiary:     var(--color-slate-500);
+  --text-disabled:     var(--color-slate-600);
+  --text-on-dark:      var(--color-white);
+  --text-link:         var(--color-accent-400);
+  --text-error:        #f87171;
+  --text-success:      #4ade80;
+
+  /* ── Semantic border aliases (dark = default) ── */
+  --border-default:    rgb(148 163 184 / 0.15);
+  --border-input:      rgb(148 163 184 / 0.28);
+  --border-strong:     rgb(148 163 184 / 0.45);
+
+  /* ── Interactive fill ── */
+  --fill-primary:      var(--gradient-accent);
+  --fill-primary-text: var(--color-accent-ink);
+
+  /* ── Status badge palettes (dark = default) ── */
+  --status-saved-bg:    rgb(148 163 184 / 0.10); --status-saved-border:    rgb(148 163 184 / 0.30); --status-saved-text:    #cbd5e1; --status-saved-dot:    #94a3b8;
+  --status-applied-bg:  rgb(96 165 250 / 0.12);  --status-applied-border:  rgb(96 165 250 / 0.35);  --status-applied-text:  #93c5fd; --status-applied-dot:  #60a5fa;
+  --status-interviewing-bg: rgb(251 191 36 / 0.12); --status-interviewing-border: rgb(251 191 36 / 0.35); --status-interviewing-text: #fcd34d; --status-interviewing-dot: #fbbf24;
+  --status-offer-bg:    rgb(163 230 53 / 0.12);  --status-offer-border:    rgb(163 230 53 / 0.35);  --status-offer-text:    #bef264; --status-offer-dot:    #a3e635;
+  --status-accepted-bg: rgb(74 222 128 / 0.12);  --status-accepted-border: rgb(74 222 128 / 0.35);  --status-accepted-text: #86efac; --status-accepted-dot: #4ade80;
+  --status-rejected-bg: rgb(248 113 113 / 0.12); --status-rejected-border: rgb(248 113 113 / 0.35); --status-rejected-text: #fca5a5; --status-rejected-dot: #f87171;
+  --status-withdrawn-bg: rgb(100 116 139 / 0.10); --status-withdrawn-border: rgb(100 116 139 / 0.30); --status-withdrawn-text: #94a3b8; --status-withdrawn-dot: #64748b;
+
+  /* Count badge */
+  --badge-count-bg:   rgb(148 163 184 / 0.12);
+  --badge-count-text: var(--color-slate-300);
+}
+
+/* Light-mode overrides (dark is the default).
+   Force a scheme regardless of OS with <html class="oa-dark"> / <html class="oa-light">. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --gradient-page:   linear-gradient(160deg, #f8fafc 0%, #eef2f7 60%, #e2e8f0 100%); /* @kind color */
+    --gradient-panel:  linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); /* @kind color */
+    --glow-accent:     radial-gradient(600px 320px at 75% -10%, rgb(132 204 22 / 0.12), transparent 70%); /* @kind color */
+
+    --surface-page:    var(--color-slate-50);
+    --surface-card:    var(--color-white);
+    --surface-raised:  var(--color-white);
+    --surface-overlay: rgb(2 6 23 / 0.40);
+    --surface-input:   var(--color-white);
+
+    --text-primary:    var(--color-slate-900);
+    --text-secondary:  var(--color-slate-500);
+    --text-tertiary:   var(--color-slate-400);
+    --text-disabled:   var(--color-slate-400);
+    --text-link:       var(--color-accent-600);
+    --text-error:      var(--color-red-600);
+    --text-success:    var(--color-green-600);
+
+    --border-default:  var(--color-slate-200);
+    --border-input:    var(--color-slate-300);
+    --border-strong:   var(--color-slate-400);
+
+    --color-drag-over-bg: rgb(132 204 22 / 0.08);
+
+    --status-saved-bg:    #f8fafc; --status-saved-border:    #cbd5e1; --status-saved-text:    #334155; --status-saved-dot:    #94a3b8;
+    --status-applied-bg:  #eff6ff; --status-applied-border:  #bfdbfe; --status-applied-text:  #1d4ed8; --status-applied-dot:  #60a5fa;
+    --status-interviewing-bg: #fefce8; --status-interviewing-border: #fde68a; --status-interviewing-text: #92400e; --status-interviewing-dot: #fbbf24;
+    --status-offer-bg:    #f7fee7; --status-offer-border:    #d9f99d; --status-offer-text:    #3f6212; --status-offer-dot:    #84cc16;
+    --status-accepted-bg: #f0fdf4; --status-accepted-border: #86efac; --status-accepted-text: #14532d; --status-accepted-dot: #22c55e;
+    --status-rejected-bg: #fef2f2; --status-rejected-border: #fecaca; --status-rejected-text: #991b1b; --status-rejected-dot: #f87171;
+    --status-withdrawn-bg: #f8fafc; --status-withdrawn-border: #e2e8f0; --status-withdrawn-text: #64748b; --status-withdrawn-dot: #cbd5e1;
+
+    --badge-count-bg:   var(--color-slate-100);
+    --badge-count-text: var(--color-slate-600);
+  }
+}
+
+/* Explicit dark forcing — re-declares dark values with higher specificity
+   so <html class="oa-dark"> wins over the light media query. */
+:root.oa-dark {
+  --gradient-page:   linear-gradient(160deg, #020617 0%, #0f172a 55%, #1e293b 100%); /* @kind color */
+  --gradient-panel:  linear-gradient(180deg, rgb(30 41 59 / 0.85) 0%, rgb(15 23 42 / 0.95) 100%); /* @kind color */
+  --glow-accent:     radial-gradient(600px 320px at 75% -10%, rgb(132 204 22 / 0.16), transparent 70%); /* @kind color */
+
+  --surface-page:    var(--color-slate-900);
+  --surface-card:    rgb(30 41 59 / 0.55);
+  --surface-raised:  var(--color-slate-800);
+  --surface-overlay: rgb(2 6 23 / 0.60);
+  --surface-input:   rgb(2 6 23 / 0.40);
+
+  --text-primary:    var(--color-slate-100);
+  --text-secondary:  var(--color-slate-400);
+  --text-tertiary:   var(--color-slate-500);
+  --text-disabled:   var(--color-slate-600);
+  --text-link:       var(--color-accent-400);
+  --text-error:      #f87171;
+  --text-success:    #4ade80;
+
+  --border-default:  rgb(148 163 184 / 0.15);
+  --border-input:    rgb(148 163 184 / 0.28);
+  --border-strong:   rgb(148 163 184 / 0.45);
+
+  --color-drag-over-bg: rgb(132 204 22 / 0.10);
+
+  --status-saved-bg:    rgb(148 163 184 / 0.10); --status-saved-border:    rgb(148 163 184 / 0.30); --status-saved-text:    #cbd5e1; --status-saved-dot:    #94a3b8;
+  --status-applied-bg:  rgb(96 165 250 / 0.12);  --status-applied-border:  rgb(96 165 250 / 0.35);  --status-applied-text:  #93c5fd; --status-applied-dot:  #60a5fa;
+  --status-interviewing-bg: rgb(251 191 36 / 0.12); --status-interviewing-border: rgb(251 191 36 / 0.35); --status-interviewing-text: #fcd34d; --status-interviewing-dot: #fbbf24;
+  --status-offer-bg:    rgb(163 230 53 / 0.12);  --status-offer-border:    rgb(163 230 53 / 0.35);  --status-offer-text:    #bef264; --status-offer-dot:    #a3e635;
+  --status-accepted-bg: rgb(74 222 128 / 0.12);  --status-accepted-border: rgb(74 222 128 / 0.35);  --status-accepted-text: #86efac; --status-accepted-dot: #4ade80;
+  --status-rejected-bg: rgb(248 113 113 / 0.12); --status-rejected-border: rgb(248 113 113 / 0.35); --status-rejected-text: #fca5a5; --status-rejected-dot: #f87171;
+  --status-withdrawn-bg: rgb(100 116 139 / 0.10); --status-withdrawn-border: rgb(100 116 139 / 0.30); --status-withdrawn-text: #94a3b8; --status-withdrawn-dot: #64748b;
+
+  --badge-count-bg:   rgb(148 163 184 / 0.12);
+  --badge-count-text: var(--color-slate-300);
+}
+
+/* Explicit light forcing (mirrors the media-query block) */
+:root.oa-light {
+  --gradient-page:   linear-gradient(160deg, #f8fafc 0%, #eef2f7 60%, #e2e8f0 100%); /* @kind color */
+  --gradient-panel:  linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); /* @kind color */
+  --glow-accent:     radial-gradient(600px 320px at 75% -10%, rgb(132 204 22 / 0.12), transparent 70%); /* @kind color */
+
+  --surface-page:    var(--color-slate-50);
+  --surface-card:    var(--color-white);
+  --surface-raised:  var(--color-white);
+  --surface-overlay: rgb(2 6 23 / 0.40);
+  --surface-input:   var(--color-white);
+
+  --text-primary:    var(--color-slate-900);
+  --text-secondary:  var(--color-slate-500);
+  --text-tertiary:   var(--color-slate-400);
+  --text-disabled:   var(--color-slate-400);
+  --text-link:       var(--color-accent-600);
+  --text-error:      var(--color-red-600);
+  --text-success:    var(--color-green-600);
+
+  --border-default:  var(--color-slate-200);
+  --border-input:    var(--color-slate-300);
+  --border-strong:   var(--color-slate-400);
+
+  --color-drag-over-bg: rgb(132 204 22 / 0.08);
+
+  --status-saved-bg:    #f8fafc; --status-saved-border:    #cbd5e1; --status-saved-text:    #334155; --status-saved-dot:    #94a3b8;
+  --status-applied-bg:  #eff6ff; --status-applied-border:  #bfdbfe; --status-applied-text:  #1d4ed8; --status-applied-dot:  #60a5fa;
+  --status-interviewing-bg: #fefce8; --status-interviewing-border: #fde68a; --status-interviewing-text: #92400e; --status-interviewing-dot: #fbbf24;
+  --status-offer-bg:    #f7fee7; --status-offer-border:    #d9f99d; --status-offer-text:    #3f6212; --status-offer-dot:    #84cc16;
+  --status-accepted-bg: #f0fdf4; --status-accepted-border: #86efac; --status-accepted-text: #14532d; --status-accepted-dot: #22c55e;
+  --status-rejected-bg: #fef2f2; --status-rejected-border: #fecaca; --status-rejected-text: #991b1b; --status-rejected-dot: #f87171;
+  --status-withdrawn-bg: #f8fafc; --status-withdrawn-border: #e2e8f0; --status-withdrawn-text: #64748b; --status-withdrawn-dot: #cbd5e1;
+
+  --badge-count-bg:   var(--color-slate-100);
+  --badge-count-text: var(--color-slate-600);
+}
+
+:root.oa-dark  { color-scheme: dark; }
+:root.oa-light { color-scheme: light; }

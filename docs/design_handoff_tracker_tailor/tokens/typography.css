@@ -1,0 +1,54 @@
+/* ============================================================
+   Open Application — Typography Tokens
+   Display: Space Grotesk — bold, geometric, high-personality headings
+   Body:    Geist Sans (Vercel / Google Fonts)
+   Mono:    Geist Mono
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ── Font families ── */
+  --font-display: 'Space Grotesk', 'Geist', ui-sans-serif, system-ui, sans-serif;
+  --font-sans:    'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'Geist Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Font sizes (mirrors Tailwind's default scale) ── */
+  --text-xs:   0.75rem;    /* 12px — labels, metadata, badges */
+  --text-sm:   0.875rem;   /* 14px — secondary text, inputs */
+  --text-base: 1rem;       /* 16px — body */
+  --text-lg:   1.125rem;   /* 18px — subheadings */
+  --text-xl:   1.25rem;    /* 20px — card titles */
+  --text-2xl:  1.5rem;     /* 24px */
+  --text-3xl:  1.875rem;   /* 30px — page headings */
+  --text-4xl:  2.25rem;    /* 36px */
+  --text-5xl:  3rem;       /* 48px — hero headings */
+
+  /* ── Font weights ── */
+  --weight-regular:   400;
+  --weight-medium:    500;
+  --weight-semibold:  600;
+  --weight-bold:      700;
+
+  /* ── Line heights ── */
+  --leading-tight:   1.1;
+  --leading-snug:    1.375;
+  --leading-normal:  1.5;
+  --leading-relaxed: 1.625;
+
+  /* ── Letter spacing ── */
+  --tracking-tight:  -0.03em;   /* display headings */
+  --tracking-normal: 0em;
+  --tracking-wide:   0.08em;    /* uppercase eyebrow labels */
+
+  /* ── Semantic type roles ── */
+  --type-hero:         var(--weight-bold) var(--text-5xl)/var(--leading-tight) var(--font-display);
+  --type-page-title:   var(--weight-bold) var(--text-3xl)/var(--leading-tight) var(--font-display);
+  --type-section-title:var(--weight-semibold) var(--text-xl)/var(--leading-snug) var(--font-display);
+  --type-eyebrow:      var(--weight-semibold) var(--text-xs)/var(--leading-normal) var(--font-display);
+  --type-label:        var(--weight-semibold) var(--text-sm)/var(--leading-normal) var(--font-sans);
+  --type-body:         var(--weight-regular) var(--text-base)/var(--leading-normal) var(--font-sans);
+  --type-body-sm:      var(--weight-regular) var(--text-sm)/var(--leading-normal) var(--font-sans);
+  --type-caption:      var(--weight-regular) var(--text-xs)/var(--leading-normal) var(--font-sans);
+  --type-code:         var(--weight-regular) var(--text-sm)/var(--leading-relaxed) var(--font-mono);
+}

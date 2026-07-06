@@ -1,0 +1,182 @@
+<!-- @dsCard group="Web App" viewport="1440x900" name="Tailor my CV (redesign)" subtitle="Two-step wizard — persistent base resume, JD input, tailored result with reasoning panel" -->
+<!DOCTYPE html>
+<html lang="en" class="oa-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tailor my CV — redesign</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body, #root { height: 100%; margin: 0; }
+    body { font-family: var(--font-sans); color: var(--text-primary); background: var(--gradient-page) fixed; -webkit-font-smoothing: antialiased; }
+    #root { position: relative; }
+    #root::before { content: ''; position: fixed; inset: 0; background: var(--glow-accent); pointer-events: none; }
+    input, select, textarea, button { font-family: inherit; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2 { font-family: var(--font-display); }
+    .hover-underline:hover { text-decoration: underline; }
+    .hover-bg:hover { background: rgb(148 163 184 / 0.08) !important; }
+    @media (prefers-reduced-motion: no-preference) {
+      .tcv-pulse { animation: tcvPulse 1s ease-in-out infinite; }
+      @keyframes tcvPulse { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="tracker-redesign-components.jsx"></script>
+<script type="text/babel" src="tailor-components.jsx"></script>
+<script type="text/babel" src="tailor-result.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "reasoningSide": "right",
+  "showStepDots": true
+}/*EDITMODE-END*/;
+
+function Header() {
+  return (
+    <header style={{ position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between',
+      borderBottom:'1px solid var(--border-default)', padding:'12px 24px' }}>
+      <a href="index.html" style={{ fontWeight:'var(--weight-bold)', fontSize:'var(--text-sm)',
+        fontFamily:'var(--font-display)', letterSpacing:'var(--tracking-tight)',
+        color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap' }}>
+        <span style={{ width:8, height:8, borderRadius:2, background:'var(--gradient-accent)', display:'inline-block' }}></span>
+        Open Application
+      </a>
+      <button className="hover-underline"
+        style={{ fontSize:'var(--text-sm)', color:'var(--text-secondary)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-sans)' }}>
+        Sign out
+      </button>
+    </header>
+  );
+}
+
+// Step 1 — base resume (upload once, persists)
+function StepResume({ resume, setResume, onNext }) {
+  return (
+    <div style={{ maxWidth:'34rem' }}>
+      <h2 style={{ margin:0, fontSize:'var(--text-lg)', fontWeight:'var(--weight-semibold)', letterSpacing:'var(--tracking-tight)' }}>Your base resume</h2>
+      <p style={{ margin:'4px 0 16px', fontSize:'var(--text-sm)', color:'var(--text-secondary)' }}>
+        Upload it once — we keep it saved so you can tailor for any job in seconds.
+      </p>
+      {resume ? (
+        <TcvResumeChip resume={resume}
+          onReplace={() => setResume(TCV_SAMPLE_RESUME)}
+          onRemove={() => setResume(null)}></TcvResumeChip>
+      ) : (
+        <TcvDropZone label="Drop your resume here, or click to browse"
+          hint="PDF or DOCX, up to 5 MB"
+          onPick={() => setResume(TCV_SAMPLE_RESUME)}></TcvDropZone>
+      )}
+      <div style={{ marginTop:20, display:'flex', justifyContent:'flex-end' }}>
+        <TrPrimaryBtn onClick={onNext} disabled={!resume}>Continue</TrPrimaryBtn>
+      </div>
+    </div>
+  );
+}
+
+// Step 2 — job description (paste or upload)
+function StepJD({ jd, setJd, onBack, onGenerate }) {
+  return (
+    <div style={{ maxWidth:'34rem' }}>
+      <h2 style={{ margin:0, fontSize:'var(--text-lg)', fontWeight:'var(--weight-semibold)', letterSpacing:'var(--tracking-tight)' }}>Job description</h2>
+      <p style={{ margin:'4px 0 16px', fontSize:'var(--text-sm)', color:'var(--text-secondary)' }}>
+        Paste the posting, or upload it as a file.
+      </p>
+      <textarea value={jd} onChange={e => setJd(e.target.value)} rows={9}
+        placeholder="Paste the job description…"
+        style={{ width:'100%', fontFamily:'var(--font-sans)', fontSize:'var(--text-sm)', lineHeight:'var(--leading-relaxed)',
+          color:'var(--text-primary)', background:'var(--surface-input)', border:'1px solid var(--border-input)',
+          borderRadius:'var(--radius-lg)', padding:'12px 14px', outline:'none', resize:'vertical' }}></textarea>
+      <div style={{ marginTop:8 }}>
+        <TcvDropZone label="…or drop a job description file"
+          hint="PDF, DOCX, or TXT"
+          onPick={() => setJd(TCV_SAMPLE_JD)}></TcvDropZone>
+      </div>
+      <div style={{ marginTop:20, display:'flex', justifyContent:'space-between' }}>
+        <TrGhostBtn onClick={onBack}>← Back</TrGhostBtn>
+        <TrPrimaryBtn onClick={onGenerate} disabled={!jd.trim()}>Tailor my resume</TrPrimaryBtn>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [resume, setResumeState] = React.useState(() => tcvLoadResume());
+  const [jd, setJd] = React.useState('');
+  // phase: 'resume' | 'jd' | 'working' | 'result'
+  const [phase, setPhase] = React.useState(() => (tcvLoadResume() ? 'jd' : 'resume'));
+
+  function setResume(r) {
+    setResumeState(r);
+    if (r) tcvSaveResume(r); else try { localStorage.removeItem(TCV_RESUME_KEY); } catch {}
+  }
+
+  const stepIndex = phase === 'resume' ? 0 : phase === 'jd' ? 1 : 2;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100%' }}>
+      <Header></Header>
+      <main style={{ position:'relative', margin:'0 auto', width:'100%',
+        maxWidth: phase === 'result' ? '80rem' : '48rem', padding:'32px 24px 48px' }}>
+
+        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
+          <div>
+            <a href="index.html" className="hover-underline" style={{ fontSize:'var(--text-sm)', color:'var(--text-secondary)' }}>← Home</a>
+            <h1 style={{ margin:'8px 0 0', fontSize:'var(--text-3xl)', fontWeight:'var(--weight-bold)',
+              letterSpacing:'var(--tracking-tight)', lineHeight:'var(--leading-tight)' }}>
+              Tailor my CV
+            </h1>
+          </div>
+          {t.showStepDots && phase !== 'working' && <TcvStepDots step={stepIndex}></TcvStepDots>}
+        </div>
+
+        {/* Persisted resume shown compactly on later steps */}
+        {resume && phase === 'jd' && (
+          <div style={{ margin:'24px 0 0', maxWidth:'34rem' }}>
+            <TcvResumeChip resume={resume}
+              onReplace={() => setResume(TCV_SAMPLE_RESUME)}
+              onRemove={() => { setResume(null); setPhase('resume'); }}></TcvResumeChip>
+          </div>
+        )}
+
+        <div style={{ marginTop: phase === 'jd' ? 20 : 32 }}>
+          {phase === 'resume' && (
+            <StepResume resume={resume} setResume={setResume} onNext={() => setPhase('jd')}></StepResume>
+          )}
+          {phase === 'jd' && (
+            <StepJD jd={jd} setJd={setJd} onBack={() => setPhase('resume')} onGenerate={() => setPhase('working')}></StepJD>
+          )}
+          {phase === 'working' && (
+            <TcvProgress onDone={() => setPhase('result')}></TcvProgress>
+          )}
+          {phase === 'result' && (
+            <TcvResultView reasoningSide={t.reasoningSide}
+              onRefine={() => setPhase('working')}
+              onStartOver={() => { setJd(''); setPhase('jd'); }}></TcvResultView>
+          )}
+        </div>
+      </main>
+
+      <TweaksPanel>
+        <TweakSection label="Layout"></TweakSection>
+        <TweakRadio label="Reasoning panel" value={t.reasoningSide} options={['right', 'left']}
+          onChange={v => setTweak('reasoningSide', v)}></TweakRadio>
+        <TweakToggle label="Step indicator" value={t.showStepDots}
+          onChange={v => setTweak('showStepDots', v)}></TweakToggle>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App></App>);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+/* Open Application Design System — root stylesheet entry point.
+   Consumers link this one file; everything is imported transitively. */
+
+@import "./tokens/typography.css";
+@import "./tokens/colors.css";
+@import "./tokens/spacing.css";
+@import "./tokens/radii.css";
+@import "./tokens/shadows.css";

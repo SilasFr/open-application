@@ -1,0 +1,223 @@
+<!-- @dsCard group="Web App" viewport="1440x900" name="Tracker (redesign)" subtitle="Redesigned Application Tracker — stats, filters, add modal, polished board + detail panel" -->
+<!DOCTYPE html>
+<html lang="en" class="oa-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Application Tracker — redesign</title>
+  <link rel="stylesheet" href="../../styles.css">
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body, #root { height: 100%; margin: 0; }
+    body { font-family: var(--font-sans); color: var(--text-primary); background: var(--gradient-page) fixed; -webkit-font-smoothing: antialiased; }
+    #root { position: relative; }
+    #root::before { content: ''; position: fixed; inset: 0; background: var(--glow-accent); pointer-events: none; }
+    input, select, textarea, button { font-family: inherit; }
+    a { color: inherit; text-decoration: none; }
+    h1, h2 { font-family: var(--font-display); }
+    .hover-border:hover { border-color: rgb(163 230 53 / 0.5) !important; box-shadow: var(--shadow-glow); }
+    .hover-underline:hover { text-decoration: underline; }
+    .hover-bg:hover { background: rgb(148 163 184 / 0.08) !important; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="tracker-redesign-components.jsx"></script>
+<script type="text/babel" src="tracker-redesign-panel.jsx"></script>
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "boardStyle": "open",
+  "density": "comfortable",
+  "showStats": true
+}/*EDITMODE-END*/;
+
+function Header() {
+  return (
+    <header style={{ position:'relative', zIndex:10, display:'flex', alignItems:'center', justifyContent:'space-between',
+      borderBottom:'1px solid var(--border-default)', padding:'12px 24px' }}>
+      <a href="index.html" style={{ fontWeight:'var(--weight-bold)', fontSize:'var(--text-sm)',
+        fontFamily:'var(--font-display)', letterSpacing:'var(--tracking-tight)',
+        color:'var(--text-primary)', display:'flex', alignItems:'center', gap:8, whiteSpace:'nowrap' }}>
+        <span style={{ width:8, height:8, borderRadius:2, background:'var(--gradient-accent)', display:'inline-block' }}></span>
+        Open Application
+      </a>
+      <button className="hover-underline"
+        style={{ fontSize:'var(--text-sm)', color:'var(--text-secondary)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font-sans)' }}>
+        Sign out
+      </button>
+    </header>
+  );
+}
+
+const selectCls = {
+  fontFamily:'var(--font-sans)', fontSize:'var(--text-sm)', color:'var(--text-primary)',
+  background:'var(--surface-input)', border:'1px solid var(--border-input)',
+  borderRadius:'var(--radius-md)', padding:'8px 10px', cursor:'pointer', outline:'none',
+};
+
+function Toolbar({ query, setQuery, statusFilter, setStatusFilter, ageFilter, setAgeFilter }) {
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:8, alignItems:'center' }}>
+      <div style={{ position:'relative', display:'flex', alignItems:'center', flex:'1 1 240px', minWidth:200 }}>
+        <span style={{ position:'absolute', left:12, color:'var(--text-tertiary)', fontSize:'var(--text-sm)', pointerEvents:'none' }}>⌕</span>
+        <input type="search" value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="Search by company or role…"
+          style={{ ...trInputCls, paddingLeft:32 }} />
+      </div>
+      <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={selectCls} aria-label="Filter by status">
+        <option value="all">All statuses</option>
+        {Object.keys(STATUS_LABELS).map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+      </select>
+      <select value={ageFilter} onChange={e => setAgeFilter(e.target.value)} style={selectCls} aria-label="Filter by date added">
+        <option value="any">Added any time</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+      </select>
+    </div>
+  );
+}
+
+function App() {
+  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [apps, setApps] = React.useState(TR_INIT_APPS);
+  const [notes, setNotes] = React.useState(TR_INIT_NOTES);
+  const [contacts] = React.useState(TR_INIT_CONTACTS);
+  const [tasks, setTasks] = React.useState(TR_INIT_TASKS);
+  const [selected, setSelected] = React.useState(null);
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('all');
+  const [ageFilter, setAgeFilter] = React.useState('any');
+  const [dragApp, setDragApp] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  function moveTo(app, target) {
+    if (!TR_ALLOWED[app.status].includes(target)) {
+      setError("That move isn't allowed for this application's status.");
+      return;
+    }
+    setError(null);
+    const updated = { ...app, status: target, last_activity: new Date().toISOString() };
+    setApps(prev => prev.map(a => a.id === app.id ? updated : a));
+    setSelected(prev => prev && prev.id === app.id ? updated : prev);
+  }
+
+  function handleDrop(colId) {
+    if (!dragApp) return;
+    const app = dragApp;
+    setDragApp(null);
+    let target;
+    if (colId === 'closed') {
+      target = TR_ALLOWED[app.status].find(s => TR_CLOSED.includes(s));
+    } else {
+      target = colId;
+    }
+    if (trStatusToCol(app.status) === colId) return;
+    if (!target || !TR_ALLOWED[app.status].includes(target)) {
+      setError("That move isn't allowed for this application's status.");
+      return;
+    }
+    moveTo(app, target);
+  }
+
+  function handleAdd({ company, role, status }) {
+    const now = new Date().toISOString();
+    setApps(prev => [...prev, { id:String(Date.now()), company, role, status, created_at:now, last_activity:now }]);
+  }
+
+  const filtered = apps.filter(a => {
+    const q = query.trim().toLowerCase();
+    if (q && !a.company.toLowerCase().includes(q) && !a.role.toLowerCase().includes(q)) return false;
+    if (statusFilter !== 'all' && a.status !== statusFilter) return false;
+    if (ageFilter !== 'any' && daysSince(a.created_at) > Number(ageFilter)) return false;
+    return true;
+  });
+
+  const byCol = Object.fromEntries(TR_COLUMNS.map(c => [c.id, []]));
+  for (const a of filtered) { byCol[trStatusToCol(a.status)].push(a); }
+
+  const dragHandlers = {
+    start: app => setDragApp(app),
+    end: () => setDragApp(null),
+    draggingId: dragApp ? dragApp.id : null,
+  };
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', minHeight:'100%' }}>
+      <Header></Header>
+      <main style={{ position:'relative', margin:'0 auto', width:'100%', maxWidth:'80rem', padding:'32px 24px 48px' }}>
+
+        {/* Page header row */}
+        <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, flexWrap:'wrap' }}>
+          <div>
+            <a href="index.html" className="hover-underline" style={{ fontSize:'var(--text-sm)', color:'var(--text-secondary)' }}>← Home</a>
+            <h1 style={{ margin:'8px 0 0', fontSize:'var(--text-3xl)', fontWeight:'var(--weight-bold)',
+              letterSpacing:'var(--tracking-tight)', lineHeight:'var(--leading-tight)' }}>
+              Application Tracker
+            </h1>
+          </div>
+          <TrPrimaryBtn onClick={() => setShowAdd(true)}>+ Add application</TrPrimaryBtn>
+        </div>
+
+        {/* Stats */}
+        {t.showStats && (
+          <div style={{ marginTop:24 }}>
+            <StatsStrip apps={apps}></StatsStrip>
+          </div>
+        )}
+
+        {/* Search + filters */}
+        <div style={{ marginTop:16 }}>
+          <Toolbar query={query} setQuery={setQuery}
+            statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+            ageFilter={ageFilter} setAgeFilter={setAgeFilter}></Toolbar>
+        </div>
+
+        {error && <p style={{ margin:'16px 0 0', fontSize:'var(--text-sm)', color:'var(--text-error)' }}>{error}</p>}
+
+        {/* Board */}
+        <div style={{ marginTop:20, display:'flex', gap: t.boardStyle === 'contained' ? 12 : 24, alignItems:'stretch', overflowX:'auto', paddingBottom:8 }}>
+          {TR_COLUMNS.map(col => (
+            <TrColumn key={col.id} col={col} cards={byCol[col.id]}
+              onCardClick={setSelected} onDropApp={handleDrop}
+              dragStatus={dragApp ? dragApp.status : null}
+              boardStyle={t.boardStyle} compact={t.density === 'compact'}
+              dragHandlers={dragHandlers}></TrColumn>
+          ))}
+        </div>
+        {filtered.length === 0 && (
+          <p style={{ marginTop:16, fontSize:'var(--text-sm)', color:'var(--text-secondary)' }}>
+            No applications match. Clear the search or filters, or add one.
+          </p>
+        )}
+      </main>
+
+      {selected && (
+        <TrDetailPanel app={selected} onClose={() => setSelected(null)} onMove={moveTo}
+          notes={notes} setNotes={setNotes} contacts={contacts}
+          tasks={tasks} setTasks={setTasks}></TrDetailPanel>
+      )}
+      {showAdd && <AddApplicationModal onClose={() => setShowAdd(false)} onAdd={handleAdd}></AddApplicationModal>}
+
+      <TweaksPanel>
+        <TweakSection label="Layout"></TweakSection>
+        <TweakRadio label="Board style" value={t.boardStyle} options={['contained', 'open']}
+          onChange={v => setTweak('boardStyle', v)}></TweakRadio>
+        <TweakRadio label="Density" value={t.density} options={['comfortable', 'compact']}
+          onChange={v => setTweak('density', v)}></TweakRadio>
+        <TweakToggle label="Stats bar" value={t.showStats}
+          onChange={v => setTweak('showStats', v)}></TweakToggle>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App></App>);
+</script>
+</body>
+</html>
