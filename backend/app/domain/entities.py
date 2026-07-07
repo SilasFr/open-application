@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from app.domain.value_objects import ApplicationStatus, NoteType
@@ -66,13 +66,30 @@ class ApplicationTask:
 
 @dataclass
 class CV:
-    """A base CV uploaded by the user."""
+    """A base CV uploaded by the user. Exactly one is current per user at a time."""
 
     id: str
     user_id: str
     filename: str
     storage_path: str
+    created_at: datetime
     content: str | None = None
+
+
+@dataclass
+class TailoredCVSection:
+    """A single section of a structured, AI-tailored CV.
+
+    Sections with ``changed=True`` must carry a non-null ``explanation``; this is
+    enforced by the service layer when validating the AI's structured output, not
+    by this dataclass itself.
+    """
+
+    id: str
+    heading: str
+    body: str
+    changed: bool
+    explanation: str | None = None
 
 
 @dataclass
@@ -85,3 +102,7 @@ class TailoredCV:
     job_description: str
     content: str
     created_at: datetime
+    sections: list[TailoredCVSection] = field(default_factory=list)
+    application_id: str | None = None
+    refinement_instructions: str | None = None
+    previous_tailored_cv_id: str | None = None

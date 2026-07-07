@@ -1,84 +1,214 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, ApiError, type BaseResume, type TailoredCV } from "@/lib/api";
+import ResumeUploadStep from "@/components/tailor/ResumeUploadStep";
+import JobDescriptionStep from "@/components/tailor/JobDescriptionStep";
+import ProgressNarrative from "@/components/tailor/ProgressNarrative";
+import TailorResult from "@/components/tailor/TailorResult";
+
+type Phase = "loading" | "resume" | "jd" | "working" | "result";
+
+const STEP_LABELS = ["Base resume", "Job description", "Result"] as const;
+
+function stepIndexForPhase(phase: Phase): number {
+  if (phase === "resume") return 0;
+  if (phase === "jd") return 1;
+  return 2; // working or result both read as "on the way to / at" the result step
+}
+
+function StepIndicator({ phase }: { phase: Phase }) {
+  const current = stepIndexForPhase(phase);
+  return (
+    <ol className="m-0 flex list-none items-center gap-2 p-0">
+      {STEP_LABELS.map((label, index) => {
+        const isDone = index < current || (index === current && phase === "result");
+        const isCurrent = index === current && phase !== "result";
+        return (
+          <li key={label} className="flex items-center gap-2">
+            <span
+              aria-hidden="true"
+              className={`flex h-5 w-5 items-center justify-center rounded-[var(--radius-token-full)] text-[10px] ${
+                isDone
+                  ? "bg-[image:var(--fill-primary)] text-[color:var(--fill-primary-text)]"
+                  : isCurrent
+                    ? "border border-[var(--border-strong)] bg-[var(--badge-count-bg)] text-[color:var(--text-primary)]"
+                    : "border border-[var(--border-default)] text-[color:var(--text-tertiary)]"
+              }`}
+            >
+              {isDone ? "✓" : index + 1}
+            </span>
+            <span
+              className={`text-xs ${
+                isDone || isCurrent
+                  ? "text-[color:var(--text-primary)]"
+                  : "text-[color:var(--text-tertiary)]"
+              }`}
+            >
+              {label}
+            </span>
+            {index < STEP_LABELS.length - 1 && (
+              <span className="mx-1 h-px w-4 bg-[var(--border-default)]" />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export default function TailorPage() {
-  const [cvText, setCvText] = useState("");
+  const [phase, setPhase] = useState<Phase>("loading");
+  const [savedResume, setSavedResume] = useState<BaseResume | null>(null);
   const [jobDescription, setJobDescription] = useState("");
-  const [result, setResult] = useState<string | null>(null);
+  const [tailored, setTailored] = useState<TailoredCV | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!cvText.trim() || !jobDescription.trim()) return;
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    try {
-      const tailored = await api.tailorCV({
-        cv_text: cvText,
-        job_description: jobDescription,
+  // FR-014 / SC-005: land directly on the job-description step when a base
+  // resume is already saved for the user, instead of re-prompting for upload.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getBaseResume()
+      .then((resume) => {
+        if (cancelled) return;
+        setSavedResume(resume);
+        setPhase(resume ? "jd" : "resume");
+      })
+      .catch(() => {
+        if (!cancelled) setPhase("resume");
       });
-      setResult(tailored.content);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function handleTailorSubmit() {
+    if (!jobDescription.trim()) return;
+    setError(null);
+    setPhase("working");
+    try {
+      const result = await api.tailorCV({ job_description: jobDescription });
+      setTailored(result);
+      setPhase("result");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to tailor CV");
-    } finally {
-      setLoading(false);
+      // Edge case: JD submitted with no saved base resume (e.g. a race between
+      // two tabs) — redirect back to the upload step. Keyed off the backend's
+      // stable error code, not the message text.
+      if (e instanceof ApiError && e.code === "base_resume_not_found") {
+        setSavedResume(null);
+        setPhase("resume");
+        setError("Please upload your base resume to continue.");
+        return;
+      }
+      setError(e instanceof Error ? e.message : "Failed to tailor resume.");
+      setPhase("jd");
     }
   }
 
+  async function handleRefine(instructions: string) {
+    if (!tailored) return;
+    setError(null);
+    setPhase("working");
+    try {
+      const result = await api.tailorCV({
+        job_description: jobDescription,
+        refinement_instructions: instructions,
+        previous_tailored_cv_id: tailored.id,
+      });
+      setTailored(result);
+      setPhase("result");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to refine resume.");
+      setPhase("result");
+    }
+  }
+
+  function handleStartOver() {
+    // FR-023: start over into a new job description while retaining the
+    // saved base resume.
+    setJobDescription("");
+    setTailored(null);
+    setError(null);
+    setPhase("jd");
+  }
+
+  function handleAttached(applicationId: string) {
+    setTailored((prev) =>
+      prev ? { ...prev, application_id: applicationId } : prev,
+    );
+  }
+
+  const showWizardChrome = phase !== "loading";
+
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
-      <Link href="/" className="text-sm text-gray-500 hover:underline">
-        ← Home
-      </Link>
-      <h1 className="mt-4 text-3xl font-bold">Tailor my CV</h1>
-
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-        <div>
-          <label className="mb-1 block text-sm font-medium">Your CV</label>
-          <textarea
-            value={cvText}
-            onChange={(e) => setCvText(e.target.value)}
-            rows={8}
-            placeholder="Paste your current CV…"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-transparent"
-          />
+    <div className="relative min-h-screen bg-[image:var(--gradient-page)]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-[image:var(--glow-accent)]"
+      />
+      <main className="relative mx-auto max-w-[80rem] px-6 py-12">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href="/"
+            className="text-sm text-[color:var(--text-secondary)] hover:underline"
+          >
+            ← Home
+          </Link>
+          {showWizardChrome && <StepIndicator phase={phase} />}
         </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            Job description
-          </label>
-          <textarea
-            value={jobDescription}
-            onChange={(e) => setJobDescription(e.target.value)}
-            rows={8}
-            placeholder="Paste the job description…"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 dark:border-gray-700 dark:bg-transparent"
-          />
+
+        <h1 className="sr-only">Tailor my CV</h1>
+
+        {error && (
+          <p
+            className="mt-4 text-sm text-[color:var(--text-error)]"
+            role="alert"
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="mt-8">
+          {phase === "loading" && (
+            <p className="text-sm text-[color:var(--text-tertiary)]">Loading…</p>
+          )}
+
+          {phase === "resume" && (
+            <ResumeUploadStep
+              savedResume={savedResume}
+              uploadResume={api.uploadBaseResume}
+              removeResume={api.deleteBaseResume}
+              onUploaded={(resume) => setSavedResume(resume)}
+              onRemoved={() => setSavedResume(null)}
+              onContinue={() => setPhase("jd")}
+            />
+          )}
+
+          {phase === "jd" && savedResume && (
+            <JobDescriptionStep
+              savedResume={savedResume}
+              jobDescription={jobDescription}
+              onChangeJobDescription={setJobDescription}
+              onManageResume={() => setPhase("resume")}
+              onBack={() => setPhase("resume")}
+              onSubmit={handleTailorSubmit}
+            />
+          )}
+
+          {phase === "working" && <ProgressNarrative />}
+
+          {phase === "result" && tailored && (
+            <TailorResult
+              tailored={tailored}
+              onAttached={handleAttached}
+              onRefine={handleRefine}
+              onStartOver={handleStartOver}
+            />
+          )}
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="rounded-lg bg-black px-4 py-2 text-white disabled:opacity-50 dark:bg-white dark:text-black"
-        >
-          {loading ? "Tailoring…" : "Tailor CV"}
-        </button>
-      </form>
-
-      {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-
-      {result && (
-        <section className="mt-8">
-          <h2 className="text-xl font-semibold">Tailored CV</h2>
-          <pre className="mt-2 whitespace-pre-wrap rounded-xl border border-gray-200 p-4 text-sm dark:border-gray-800">
-            {result}
-          </pre>
-        </section>
-      )}
-    </main>
+      </main>
+    </div>
   );
 }

@@ -58,21 +58,6 @@ def test_get_missing_returns_404(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_tailor_cv(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/cv/tailor",
-        json={"cv_text": "Jane Doe", "job_description": "Python role"},
-        headers=HEADERS,
-    )
-    assert response.status_code == 200
-    assert response.json()["content"] == "# Tailored"
-
-
-def test_tailor_cv_rejects_empty(client: TestClient) -> None:
-    response = client.post(
-        "/api/v1/cv/tailor",
-        json={"cv_text": "", "job_description": "Python role"},
-        headers=HEADERS,
-    )
-    # Pydantic min_length=1 rejects before the service — 422.
-    assert response.status_code == 422
+# CV base-resume and tailoring endpoint tests live in test_cv_api.py — the
+# tailor flow now requires a saved base resume rather than accepting raw
+# cv_text (see specs/004-ui-redesign/contracts/cv-api.md).

@@ -12,6 +12,36 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
+/**
+ * Error thrown for a non-2xx API response. `code` mirrors the backend's stable,
+ * machine-readable error code (see backend/app/domain/exceptions.py) so callers
+ * branch on `err.code`, never on the human-readable `message`.
+ */
+export class ApiError extends Error {
+  readonly code: string | null;
+  readonly status: number;
+
+  constructor(message: string, status: number, code: string | null) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** Build an ApiError from a fetch Response, reading `detail`/`code` from the body. */
+async function apiErrorFrom(res: Response): Promise<ApiError> {
+  if (res.status === 401) {
+    return new ApiError("Please sign in to continue.", 401, "authentication_error");
+  }
+  const body = await res.json().catch(() => ({}));
+  return new ApiError(
+    body.detail ?? `Request failed (${res.status})`,
+    res.status,
+    body.code ?? null,
+  );
+}
+
 async function authHeaders(): Promise<Record<string, string>> {
   if (!isSupabaseConfigured) return {};
   const supabase = createClient();
@@ -40,11 +70,28 @@ export interface Application {
   updated_at: string;
 }
 
+export interface BaseResume {
+  id: string;
+  filename: string;
+  created_at: string;
+}
+
+export interface TailoredCVSection {
+  id: string;
+  heading: string;
+  body: string;
+  changed: boolean;
+  explanation: string | null;
+}
+
 export interface TailoredCV {
   id: string;
   source_cv_id: string | null;
   job_description: string;
   content: string;
+  sections: TailoredCVSection[];
+  application_id: string | null;
+  previous_tailored_cv_id: string | null;
   created_at: string;
 }
 
@@ -100,11 +147,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store",
   });
   if (!res.ok) {
-    if (res.status === 401) {
-      throw new Error("Please sign in to continue.");
-    }
-    const detail = await res.json().catch(() => ({}));
-    throw new Error(detail.detail ?? `Request failed (${res.status})`);
+    throw await apiErrorFrom(res);
   }
   return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 }
@@ -128,11 +171,64 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-  tailorCV: (input: { cv_text: string; job_description: string }) =>
+  uploadBaseResume: async (file: File): Promise<BaseResume> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    // No Content-Type header here — the browser sets the multipart boundary.
+    const res = await fetch(`${API_URL}/api/v1/cv/base`, {
+      method: "POST",
+      headers: await authHeaders(),
+      body: formData,
+      cache: "no-store",
+    });
+    if (!res.ok) throw await apiErrorFrom(res);
+    return (await res.json()) as BaseResume;
+  },
+
+  getBaseResume: async (): Promise<BaseResume | null> => {
+    const res = await fetch(`${API_URL}/api/v1/cv/base`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(await authHeaders()),
+      },
+      cache: "no-store",
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw await apiErrorFrom(res);
+    return (await res.json()) as BaseResume;
+  },
+
+  deleteBaseResume: () => request<void>("/api/v1/cv/base", { method: "DELETE" }),
+
+  tailorCV: (input: {
+    job_description: string;
+    refinement_instructions?: string;
+    previous_tailored_cv_id?: string;
+  }) =>
     request<TailoredCV>("/api/v1/cv/tailor", {
       method: "POST",
       body: JSON.stringify(input),
     }),
+
+  getTailoredCV: (id: string) => request<TailoredCV>(`/api/v1/cv/tailored/${id}`),
+
+  attachTailoredCV: (id: string, applicationId: string) =>
+    request<TailoredCV>(`/api/v1/cv/tailored/${id}/attach`, {
+      method: "POST",
+      body: JSON.stringify({ application_id: applicationId }),
+    }),
+
+  downloadTailoredCV: async (
+    id: string,
+    format: "pdf" | "docx",
+  ): Promise<Blob> => {
+    const res = await fetch(
+      `${API_URL}/api/v1/cv/tailored/${id}/download?format=${format}`,
+      { headers: await authHeaders(), cache: "no-store" },
+    );
+    if (!res.ok) throw await apiErrorFrom(res);
+    return res.blob();
+  },
 
   listNotes: (applicationId: string) =>
     request<ApplicationNote[]>(`/api/v1/applications/${applicationId}/notes`),

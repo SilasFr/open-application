@@ -7,7 +7,21 @@ interface ContactsSectionProps {
   applicationId: string;
 }
 
-/** Associated contacts (recruiters, hiring managers, referrers) for an application. */
+const inputCls =
+  "flex-1 rounded-[var(--radius-token-md)] border border-[var(--border-input)] bg-[var(--surface-input)] px-2.5 py-1.5 text-sm text-[color:var(--text-primary)] outline-none";
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+/** Associated contacts (recruiters, hiring managers, referrers) for an
+ * application (User Story 4). */
 export default function ContactsSection({ applicationId }: ContactsSectionProps) {
   const [contacts, setContacts] = useState<ApplicationContact[]>([]);
   const [name, setName] = useState("");
@@ -75,68 +89,91 @@ export default function ContactsSection({ applicationId }: ContactsSectionProps)
   }
 
   return (
-    <div className="mt-6">
-      <h3 className="text-sm font-semibold">Contacts</h3>
+    <section className="mt-6">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="m-0 text-sm font-semibold text-[color:var(--text-primary)]">
+          Contacts
+        </h3>
+        {contacts.length > 0 && (
+          <span className="rounded-[var(--radius-token-full)] bg-[var(--badge-count-bg)] px-2 py-px text-xs font-medium text-[color:var(--badge-count-text)]">
+            {contacts.length}
+          </span>
+        )}
+      </div>
 
-      <form onSubmit={handleAdd} className="mt-2 flex flex-wrap gap-2">
+      <form onSubmit={handleAdd} className="flex flex-wrap gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Name"
-          className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-transparent"
+          className={inputCls}
         />
         <input
           value={role}
           onChange={(e) => setRole(e.target.value)}
           placeholder="Role"
-          className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-transparent"
+          className={inputCls}
         />
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="flex-1 rounded-lg border border-gray-300 px-2 py-1 text-sm dark:border-gray-700 dark:bg-transparent"
+          className={inputCls}
         />
         <button
           type="submit"
-          className="rounded-lg bg-black px-3 py-1 text-sm text-white dark:bg-white dark:text-black"
+          className="rounded-[var(--radius-token-md)] bg-[image:var(--fill-primary)] px-3.5 py-1.5 text-xs font-semibold text-[color:var(--fill-primary-text)]"
         >
-          Add Contact
+          Add contact
         </button>
       </form>
 
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {error && (
+        <p className="mt-2 text-xs text-[color:var(--text-error)]">{error}</p>
+      )}
 
-      <div className="mt-3 space-y-2">
-        {loading && <p className="text-xs text-gray-500">Loading…</p>}
+      <div className="mt-2.5 flex flex-col gap-2">
+        {loading && (
+          <p className="text-xs text-[color:var(--text-secondary)]">
+            Loading…
+          </p>
+        )}
         {!loading && contacts.length === 0 && (
-          <p className="text-xs text-gray-500">No contacts yet.</p>
+          <p className="text-xs text-[color:var(--text-secondary)]">
+            No contacts yet.
+          </p>
         )}
         {contacts.map((contact) => (
           <div
             key={contact.id}
-            className="rounded-lg border border-gray-200 p-2 text-sm dark:border-gray-800"
+            className="rounded-[var(--radius-token-md)] border border-[var(--border-default)] bg-[var(--surface-card)] p-2.5 text-sm"
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">{contact.name}</p>
-                <p className="text-xs text-gray-500">
-                  {[contact.role, contact.email, contact.phone]
-                    .filter(Boolean)
-                    .join(" · ")}
+            <div className="flex items-center gap-2.5">
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[var(--radius-token-full)] bg-[var(--badge-count-bg)] text-xs font-semibold text-[color:var(--text-secondary)]"
+              >
+                {initials(contact.name)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="m-0 font-medium text-[color:var(--text-primary)]">
+                  {contact.name}
                 </p>
-                {contact.linkedin_url && (
-                  <a
-                    href={contact.linkedin_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-blue-600 hover:underline"
-                  >
-                    LinkedIn
-                  </a>
-                )}
+                <p className="m-0 mt-px text-xs text-[color:var(--text-secondary)]">
+                  {[contact.role, contact.email].filter(Boolean).join(" · ")}
+                </p>
               </div>
-              <div className="flex gap-2 text-xs">
+              {contact.linkedin_url && (
+                <a
+                  href={contact.linkedin_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-shrink-0 text-xs text-[color:var(--text-link)] hover:underline"
+                >
+                  LinkedIn →
+                </a>
+              )}
+              <div className="flex flex-shrink-0 gap-2 text-xs text-[color:var(--text-secondary)]">
                 <button
                   onClick={() => {
                     setEditingId(contact.id);
@@ -160,11 +197,11 @@ export default function ContactsSection({ applicationId }: ContactsSectionProps)
                   value={editingLinkedin}
                   onChange={(e) => setEditingLinkedin(e.target.value)}
                   placeholder="LinkedIn URL"
-                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs dark:border-gray-700 dark:bg-transparent"
+                  className={inputCls}
                 />
                 <button
                   onClick={() => void handleSaveLinkedin(contact.id)}
-                  className="text-xs font-medium hover:underline"
+                  className="text-xs font-medium text-[color:var(--text-primary)] hover:underline"
                 >
                   Save
                 </button>
@@ -173,6 +210,6 @@ export default function ContactsSection({ applicationId }: ContactsSectionProps)
           </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }

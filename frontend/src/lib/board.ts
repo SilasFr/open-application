@@ -24,6 +24,18 @@ export const COLUMN_LABELS: Record<BoardColumnId, string> = {
   closed: "Closed",
 };
 
+/** Display labels for every concrete application status (not just columns) —
+ * used by the status badge and one-tap transition pills in the detail panel. */
+export const STATUS_LABELS: Record<ApplicationStatus, string> = {
+  saved: "Saved",
+  applied: "Applied",
+  interviewing: "Interviewing",
+  offer: "Offer",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  withdrawn: "Withdrawn",
+};
+
 const CLOSED_STATUSES: ApplicationStatus[] = [
   "accepted",
   "rejected",
