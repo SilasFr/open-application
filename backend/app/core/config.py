@@ -28,9 +28,17 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_audience: str = "authenticated"
 
+    # "gemini" | "anthropic" | "openai_compatible" (local Ollama/llama.cpp or a
+    # hosted open-model API like Groq/Together — anything speaking the OpenAI
+    # /chat/completions wire format).
     ai_provider: str = "gemini"
     anthropic_api_key: str = ""
     gemini_api_key: str = ""
+    # Used only when ai_provider="openai_compatible". base_url includes the
+    # version segment, e.g. http://localhost:11434/v1 (Ollama). ai_api_key is
+    # empty for local Ollama, set for hosted providers.
+    ai_base_url: str = ""
+    ai_api_key: str = ""
     ai_model: str = "gemini-2.0-flash"
     ai_max_tokens: int = Field(default=4096, gt=0)
 
