@@ -129,8 +129,7 @@ class CVRepository(ABC):
     """Persistence contract for a user's single, current base resume.
 
     Only one :class:`~app.domain.entities.CV` row exists per ``user_id`` at a
-    time (research.md #3) — enforced here via delete-then-insert semantics on
-    ``replace``, not by a schema flag.
+    time (research.md #3) — enforced via ``replace``, not by a schema flag.
     """
 
     @abstractmethod
@@ -139,9 +138,12 @@ class CVRepository(ABC):
 
     @abstractmethod
     async def replace(self, cv: CV, file_bytes: bytes, content_type: str) -> CV:
-        """Delete any existing base resume (row + Storage object) for
-        ``cv.user_id``, store ``file_bytes`` at ``cv.storage_path``, insert
-        ``cv``, and return the stored entity."""
+        """Make ``cv`` the user's current base resume and return the stored
+        entity: store ``file_bytes`` at ``cv.storage_path``, persist ``cv``, and
+        remove any previous resume (row + Storage object).
+
+        Implementations MUST NOT leave the user with no resume on partial
+        failure — persist the new resume before removing the old one."""
 
     @abstractmethod
     async def delete(self, user_id: str) -> None:

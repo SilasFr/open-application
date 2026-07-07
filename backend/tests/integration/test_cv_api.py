@@ -118,6 +118,17 @@ def test_tailor_requires_base_resume(client: TestClient) -> None:
         headers=HEADERS,
     )
     assert response.status_code == 404
+    # The frontend routes the user back to the upload step off this stable code,
+    # not the human-readable message — keep them in sync.
+    assert response.json()["code"] == "base_resume_not_found"
+
+
+def test_get_base_resume_404_carries_base_resume_not_found_code(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/v1/cv/base", headers=HEADERS)
+    assert response.status_code == 404
+    assert response.json()["code"] == "base_resume_not_found"
 
 
 def test_tailor_cv_returns_structured_sections(client: TestClient) -> None:

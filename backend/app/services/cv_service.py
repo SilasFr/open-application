@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.domain.entities import CV
-from app.domain.exceptions import NotFoundError, UnsupportedFileError
+from app.domain.exceptions import BaseResumeNotFoundError, UnsupportedFileError
 from app.domain.repositories import CVRepository
 from app.infrastructure.cv_text_extraction import (
     MAX_FILE_SIZE_BYTES,
@@ -28,7 +28,7 @@ class CVService:
     async def get_current(self, user_id: str) -> CV:
         cv = await self._repository.get_current(user_id)
         if cv is None:
-            raise NotFoundError("No base resume saved for this user")
+            raise BaseResumeNotFoundError("No base resume saved for this user")
         return cv
 
     async def upload(

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, type BaseResume, type TailoredCV } from "@/lib/api";
+import { api, ApiError, type BaseResume, type TailoredCV } from "@/lib/api";
 import ResumeUploadStep from "@/components/tailor/ResumeUploadStep";
 import JobDescriptionStep from "@/components/tailor/JobDescriptionStep";
 import ProgressNarrative from "@/components/tailor/ProgressNarrative";
@@ -93,16 +93,16 @@ export default function TailorPage() {
       setTailored(result);
       setPhase("result");
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to tailor resume.";
       // Edge case: JD submitted with no saved base resume (e.g. a race between
-      // two tabs) — redirect back to the upload step.
-      if (message.toLowerCase().includes("no base resume")) {
+      // two tabs) — redirect back to the upload step. Keyed off the backend's
+      // stable error code, not the message text.
+      if (e instanceof ApiError && e.code === "base_resume_not_found") {
         setSavedResume(null);
         setPhase("resume");
         setError("Please upload your base resume to continue.");
         return;
       }
-      setError(message);
+      setError(e instanceof Error ? e.message : "Failed to tailor resume.");
       setPhase("jd");
     }
   }

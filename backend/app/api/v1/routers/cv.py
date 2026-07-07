@@ -99,7 +99,7 @@ async def download_tailored_cv(
     format: Annotated[str, Query()] = "pdf",
 ) -> Response:
     tailored = await service.get_owned(user_id, tailored_id)
-    data, content_type, filename = service.render(tailored, format=format)
+    data, content_type, filename = await service.render(tailored, format=format)
     return Response(
         content=data,
         media_type=content_type,

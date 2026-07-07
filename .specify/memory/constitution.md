@@ -24,25 +24,29 @@ The backend is organized in inward-pointing layers: `api → services → domain
 Services depend on abstractions, never on concrete vendors. Persistence sits behind
 repository interfaces (ABCs / `Protocol`) declared in `app/domain/repositories.py`;
 Supabase-specific code lives only in `app/infrastructure/`. All AI calls go through a single
-`AIClient` interface — no service imports the `anthropic` SDK directly. Dependencies are
-injected (composition root in `app/core/dependencies.py`) so any implementation is swappable.
+`AIClient` interface — no service imports any LLM vendor SDK (`anthropic`, `google-genai`, …)
+directly. Dependencies are injected (composition root in `app/core/dependencies.py`) so any
+implementation is swappable.
 
 ### IV. Typed and Tested
 Full type hints on all Python code; `mypy` must be clean. Every service/use-case has `pytest`
 unit tests exercised against **in-memory fakes** of the repository and `AIClient` interfaces —
-unit tests run with no network and no live Supabase or Anthropic calls. Route contracts are
+unit tests run with no network and no live Supabase or AI-provider calls. Route contracts are
 covered by API tests via FastAPI's `TestClient`.
 
 ### V. AI is Abstracted and Configurable
-Every Claude interaction flows through the `AIClient` abstraction. Prompts are versioned files
-under `app/infrastructure/ai/prompts/`, never inline string literals scattered in logic. Model
-IDs, temperatures, and limits are configuration (`Settings`), not hardcoded — default to the
-latest Claude models and allow override per environment.
+Every LLM interaction flows through the `AIClient` abstraction. Prompts are versioned files
+under `app/infrastructure/ai/prompts/`, never inline string literals scattered in logic. The
+AI provider, model IDs, temperatures, and limits are configuration (`Settings`), not hardcoded —
+selectable per environment (`AI_PROVIDER`), with concrete `AIClient` implementations wired only
+at the composition root.
 
 ## Additional Constraints
 
 - **Stack.** Backend: Python + FastAPI managed by `uv`. Frontend: Next.js + React (TypeScript).
-  Data/auth/storage: Supabase. AI: Anthropic Claude via the `anthropic` SDK.
+  Data/auth/storage: Supabase. AI: pluggable behind the `AIClient` interface — Google Gemini
+  (via `google-genai`) is the default free-tier provider; Anthropic Claude (via `anthropic`) is
+  also supported. Selected with `AI_PROVIDER`.
 - **Security & privacy.** No secrets in the repo; every config surface has an `.env.example`.
   User data (CVs, applications) is owner-scoped and protected by Supabase Row Level Security.
   CVs and job descriptions are personal data — never log their contents.
@@ -63,4 +67,4 @@ This constitution supersedes other practices. Amendments are made by editing thi
 clear rationale and a version bump. Every plan and PR review must verify compliance with these
 principles; added complexity must be justified against Principle II and III or removed.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-01 | **Last Amended**: 2026-07-01
+**Version**: 1.1.0 | **Ratified**: 2026-07-01 | **Last Amended**: 2026-07-07

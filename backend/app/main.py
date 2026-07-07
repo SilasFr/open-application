@@ -23,39 +23,45 @@ _API_V1_PREFIX = "/api/v1"
 def _register_exception_handlers(app: FastAPI) -> None:
     """Map domain errors to HTTP responses so handlers never do it themselves."""
 
+    def _body(exc: DomainError) -> dict[str, str]:
+        # Every error carries both a human-readable ``detail`` and a stable,
+        # machine-readable ``code`` (see DomainError.code) so clients branch on
+        # the code, never on the message text.
+        return {"detail": str(exc), "code": exc.code}
+
     @app.exception_handler(AuthenticationError)
     async def _handle_auth_error(_: Request, exc: AuthenticationError) -> JSONResponse:
         return JSONResponse(
             status_code=401,
-            content={"detail": str(exc)},
+            content=_body(exc),
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     @app.exception_handler(NotFoundError)
     async def _handle_not_found(_: Request, exc: NotFoundError) -> JSONResponse:
-        return JSONResponse(status_code=404, content={"detail": str(exc)})
+        return JSONResponse(status_code=404, content=_body(exc))
 
     @app.exception_handler(InvalidStatusTransition)
     async def _handle_invalid_transition(
         _: Request, exc: InvalidStatusTransition
     ) -> JSONResponse:
-        return JSONResponse(status_code=409, content={"detail": str(exc)})
+        return JSONResponse(status_code=409, content=_body(exc))
 
     @app.exception_handler(InvalidAIResponseError)
     async def _handle_invalid_ai_response(
         _: Request, exc: InvalidAIResponseError
     ) -> JSONResponse:
-        return JSONResponse(status_code=422, content={"detail": str(exc)})
+        return JSONResponse(status_code=422, content=_body(exc))
 
     @app.exception_handler(AIGenerationError)
     async def _handle_ai_generation_error(
         _: Request, exc: AIGenerationError
     ) -> JSONResponse:
-        return JSONResponse(status_code=502, content={"detail": str(exc)})
+        return JSONResponse(status_code=502, content=_body(exc))
 
     @app.exception_handler(DomainError)
     async def _handle_domain_error(_: Request, exc: DomainError) -> JSONResponse:
-        return JSONResponse(status_code=400, content={"detail": str(exc)})
+        return JSONResponse(status_code=400, content=_body(exc))
 
 
 def create_app() -> FastAPI:

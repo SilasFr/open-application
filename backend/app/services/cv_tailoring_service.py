@@ -8,12 +8,14 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
 
+import anyio
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.domain.ai import AIClient
 from app.domain.entities import TailoredCV, TailoredCVSection
 from app.domain.exceptions import (
     AIGenerationError,
+    BaseResumeNotFoundError,
     DomainError,
     InvalidAIResponseError,
     NotFoundError,
@@ -115,7 +117,7 @@ class CVTailoringService:
 
         base_resume = await self._cv_repository.get_current(user_id)
         if base_resume is None or not (base_resume.content or "").strip():
-            raise NotFoundError("No base resume saved for this user")
+            raise BaseResumeNotFoundError("No base resume saved for this user")
 
         previous: TailoredCV | None = None
         if previous_tailored_cv_id is not None:
@@ -181,21 +183,27 @@ class CVTailoringService:
         tailored.application_id = application_id
         return await self._tailored_repository.update(tailored)
 
-    def render(self, tailored: TailoredCV, *, format: str) -> tuple[bytes, str, str]:
+    async def render(
+        self, tailored: TailoredCV, *, format: str
+    ) -> tuple[bytes, str, str]:
         """Render ``tailored`` as a downloadable document.
 
         Returns ``(bytes, content_type, filename)``. Raises ``DomainError`` (maps
         to HTTP 400) for an unrecognized ``format``.
+
+        PDF/DOCX generation is CPU-bound (reportlab / python-docx), so it's
+        offloaded to a worker thread — same ``anyio.to_thread.run_sync`` pattern
+        the Supabase repositories use — to keep the event loop unblocked.
         """
 
         fmt: Literal["pdf", "docx"]
         if format == "pdf":
             fmt = "pdf"
-            data = render_pdf(tailored.sections)
+            data = await anyio.to_thread.run_sync(render_pdf, tailored.sections)
             content_type = PDF_CONTENT_TYPE
         elif format == "docx":
             fmt = "docx"
-            data = render_docx(tailored.sections)
+            data = await anyio.to_thread.run_sync(render_docx, tailored.sections)
             content_type = DOCX_CONTENT_TYPE
         else:
             raise DomainError(f"Unsupported download format: {format!r}")

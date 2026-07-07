@@ -47,21 +47,36 @@ export default function TrackerPage() {
     role: string;
     status: "saved" | "applied";
   }) {
+    setError(null);
+    let created: Application;
     try {
-      const created = await api.createApplication({
+      created = await api.createApplication({
         company: input.company,
         role: input.role,
       });
-      // The API always creates in "saved" status; move it if the user chose
-      // "applied" as the starting status.
-      const final =
-        input.status === "applied"
-          ? await api.changeStatus(created.id, "applied")
-          : created;
-      setApplications((current) => [...current, final]);
-      setAddModalOpen(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create application");
+      return;
+    }
+    // The application now exists server-side (in "saved"). Show it and close the
+    // modal immediately so a failure of the follow-up status change can never
+    // hide an already-created application (which would otherwise resurface as a
+    // duplicate on next refresh).
+    setApplications((current) => [...current, created]);
+    setAddModalOpen(false);
+
+    // The API always creates in "saved"; move it if the user chose "applied".
+    if (input.status === "applied") {
+      try {
+        const moved = await api.changeStatus(created.id, "applied");
+        setApplications((current) =>
+          current.map((a) => (a.id === moved.id ? moved : a)),
+        );
+      } catch {
+        setError(
+          "Added, but couldn’t set it to “Applied”. You can move it on the board.",
+        );
+      }
     }
   }
 

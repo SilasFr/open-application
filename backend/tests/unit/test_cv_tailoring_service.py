@@ -247,7 +247,7 @@ async def test_attach_to_unowned_application_raises_not_found() -> None:
         await service.attach("user-1", tailored.id, "does-not-exist")
 
 
-def test_render_pdf_and_docx_produce_bytes() -> None:
+async def test_render_pdf_and_docx_produce_bytes() -> None:
     service, _, _, _ = _make_service()
     tailored = TailoredCV(
         id=str(uuid4()),
@@ -267,12 +267,14 @@ def test_render_pdf_and_docx_produce_bytes() -> None:
         ],
     )
 
-    pdf_bytes, pdf_content_type, pdf_filename = service.render(tailored, format="pdf")
+    pdf_bytes, pdf_content_type, pdf_filename = await service.render(
+        tailored, format="pdf"
+    )
     assert pdf_bytes.startswith(b"%PDF")
     assert pdf_content_type == "application/pdf"
     assert pdf_filename.endswith(".pdf")
 
-    docx_bytes, docx_content_type, docx_filename = service.render(
+    docx_bytes, docx_content_type, docx_filename = await service.render(
         tailored, format="docx"
     )
     assert docx_bytes.startswith(b"PK")  # DOCX is a zip archive
@@ -280,7 +282,7 @@ def test_render_pdf_and_docx_produce_bytes() -> None:
     assert docx_filename.endswith(".docx")
 
 
-def test_render_rejects_unknown_format() -> None:
+async def test_render_rejects_unknown_format() -> None:
     service, _, _, _ = _make_service()
     tailored = TailoredCV(
         id=str(uuid4()),
@@ -295,4 +297,4 @@ def test_render_rejects_unknown_format() -> None:
     )
 
     with pytest.raises(DomainError):
-        service.render(tailored, format="txt")
+        await service.render(tailored, format="txt")

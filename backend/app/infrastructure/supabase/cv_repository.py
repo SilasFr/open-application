@@ -112,9 +112,13 @@ class SupabaseCVRepository(CVRepository):
         return _cv_to_entity(rows[0]) if rows else None
 
     async def replace(self, cv: CV, file_bytes: bytes, content_type: str) -> CV:
-        # Enforce "one current base resume per user" via delete-then-insert
-        # (research.md #3) rather than an is_active schema flag.
-        await self.delete(cv.user_id)
+        # Enforce "one current base resume per user" (research.md #3), but never
+        # leave the user with *no* resume if a step fails. Order matters:
+        # upload + insert the new resume FIRST, and only once it's safely
+        # persisted remove the previous row/object. A failure before the insert
+        # completes leaves the existing resume fully intact.
+        existing = await self.get_current(cv.user_id)
+
         await anyio.to_thread.run_sync(
             lambda: self._client.storage.from_(_CV_BUCKET).upload(
                 cv.storage_path,
@@ -126,6 +130,23 @@ class SupabaseCVRepository(CVRepository):
         response = await anyio.to_thread.run_sync(
             lambda: self._client.table(self._TABLE).insert(row).execute()
         )
+
+        # New resume is now the current one. Best-effort cleanup of the old row
+        # and its Storage object. Skip removing the object when the path is
+        # unchanged (same filename) — the upsert above already overwrote it.
+        if existing is not None:
+            await anyio.to_thread.run_sync(
+                lambda: self._client.table(self._TABLE)
+                .delete()
+                .eq("id", existing.id)
+                .execute()
+            )
+            if existing.storage_path != cv.storage_path:
+                await anyio.to_thread.run_sync(
+                    lambda: self._client.storage.from_(_CV_BUCKET).remove(
+                        [existing.storage_path]
+                    )
+                )
         return _cv_to_entity(response.data[0])
 
     async def delete(self, user_id: str) -> None:
