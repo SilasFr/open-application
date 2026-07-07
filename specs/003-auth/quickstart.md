@@ -29,10 +29,11 @@ This guide describes how to validate that each auth flow works end-to-end after 
 5. Submit
 
 **Expected**:
-- If email confirmation is enabled: notice "Check your email…" is shown; mode switches to sign-in
-  - Open Supabase Dashboard → Authentication → Users → verify the unconfirmed user appears
-  - Click the confirmation link from the email → browser lands at `/tracker`
-- If email confirmation is disabled (auto-confirm): redirect to `/tracker` immediately
+- Email confirmation is disabled (see research.md Decision 7), so the account is
+  active immediately and the browser redirects to `/tracker` — no "check your
+  email" step.
+- Prerequisite: Supabase Dashboard → Authentication → Sign In / Providers →
+  Email → "Confirm email" is **off**.
 
 ---
 
