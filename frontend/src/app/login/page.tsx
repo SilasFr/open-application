@@ -94,13 +94,19 @@ export default function LoginPage() {
       } else {
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw new Error(normalizeSignUpError(error.message));
-        if (data.session) {
-          router.push("/tracker");
-          router.refresh();
-        } else {
-          setNotice("Check your email to confirm your account, then sign in.");
-          setMode("sign-in");
+        // Email confirmation is disabled in Supabase, so a new account is
+        // active immediately — no "check your email" step. In that mode signUp
+        // returns a session; if it doesn't (e.g. confirmation was re-enabled),
+        // sign in explicitly so the user always lands in the app.
+        if (!data.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (signInError) throw new Error(normalizeSignInError());
         }
+        router.push("/tracker");
+        router.refresh();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Authentication failed.");

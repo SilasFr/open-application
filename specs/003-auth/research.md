@@ -78,8 +78,9 @@ Social login via Google/LinkedIn issues the same Supabase JWT format — the ver
 
 ### Decision 7: Email confirmation flow
 
-**Decision**: After email/password sign-up, if Supabase requires email confirmation, show a notice ("Check your email to confirm your account, then sign in.") and switch to sign-in mode. The confirmation link in the email routes through `/auth/callback` which exchanges the token and redirects to `/tracker`.
+**Decision**: Email confirmation is **disabled** (Supabase Dashboard → Authentication → Sign In / Providers → Email → "Confirm email" off). A new email/password sign-up returns an active session immediately and the user is redirected straight to `/tracker` — no "check your email" step. The login page defensively signs the user in explicitly if `signUp` ever returns no session (e.g. confirmation re-enabled).
 
-**Rationale**: This is already partially implemented in the existing login page. The only missing piece is wiring `/auth/callback` to handle the `type=signup` confirmation code.
+**Rationale**: Reliable transactional email requires custom SMTP (e.g. Resend), which is deferred until the project needs it. Blocking every new sign-up on an email that may not deliver is a worse trade-off at this stage than allowing unconfirmed accounts. Revisit (re-enable confirmation) once SMTP is configured and scale warrants it.
 
-**Alternatives considered**: None — this is standard Supabase email confirmation behaviour.
+**Alternatives considered**:
+- Keep confirmation on with Supabase's built-in email: rejected — the default sender is rate-limited (2/hour) and unsuitable for real sign-ups; deliverability is unreliable without custom SMTP.

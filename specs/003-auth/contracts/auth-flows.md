@@ -37,17 +37,14 @@ Error message displayed; user remains on /login
 
 ```
 User → POST credentials → supabase.auth.signUp()
-   ↓ email confirmation required (Supabase dashboard setting)
-Notice shown: "Check your email…" → mode switches to sign-in
-   ↓ user clicks confirmation link in email
-GET /auth/callback?code=<token>&type=signup
-   → supabase.auth.exchangeCodeForSession(code)
-   → redirect to /tracker
-   ↓ email confirmation not required (auto-confirm)
+   ↓ email confirmation disabled (Supabase dashboard setting; research.md #7)
 Session returned directly → redirect to /tracker
+   ↓ (defensive) no session returned
+supabase.auth.signInWithPassword() → redirect to /tracker
 ```
 
 **Inputs**: same as sign-in
+**Prerequisite**: "Confirm email" is disabled in the Supabase dashboard.
 **Error cases**: duplicate email → "This email is already registered. Try signing in."
 
 ---
