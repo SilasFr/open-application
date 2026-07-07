@@ -45,8 +45,9 @@ at the composition root.
 
 - **Stack.** Backend: Python + FastAPI managed by `uv`. Frontend: Next.js + React (TypeScript).
   Data/auth/storage: Supabase. AI: pluggable behind the `AIClient` interface — Google Gemini
-  (via `google-genai`) is the default free-tier provider; Anthropic Claude (via `anthropic`) is
-  also supported. Selected with `AI_PROVIDER`.
+  (via `google-genai`) is the default free-tier provider; Anthropic Claude (via `anthropic`) and
+  any OpenAI-compatible endpoint (self-hosted Ollama/llama.cpp or a hosted open-model API, via
+  `openai_compatible`) are also supported. Selected with `AI_PROVIDER`.
 - **Security & privacy.** No secrets in the repo; every config surface has an `.env.example`.
   User data (CVs, applications) is owner-scoped and protected by Supabase Row Level Security.
   CVs and job descriptions are personal data — never log their contents.

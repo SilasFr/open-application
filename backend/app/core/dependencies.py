@@ -26,6 +26,7 @@ from app.domain.repositories import (
 )
 from app.infrastructure.ai.anthropic_client import AnthropicClient
 from app.infrastructure.ai.gemini_client import GeminiClient
+from app.infrastructure.ai.openai_compatible_client import OpenAICompatibleClient
 from app.infrastructure.ai.prompts import load_prompt
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
 from app.infrastructure.supabase.application_repository import (
@@ -122,6 +123,13 @@ def get_ai_client(settings: SettingsDep) -> AIClient:
     if settings.ai_provider == "anthropic":
         return AnthropicClient(
             api_key=settings.anthropic_api_key,
+            model=settings.ai_model,
+            max_tokens=settings.ai_max_tokens,
+        )
+    if settings.ai_provider == "openai_compatible":
+        return OpenAICompatibleClient(
+            base_url=settings.ai_base_url,
+            api_key=settings.ai_api_key,
             model=settings.ai_model,
             max_tokens=settings.ai_max_tokens,
         )
