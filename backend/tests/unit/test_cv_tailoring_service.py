@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from app.domain.ai import AIClient
 from app.domain.entities import CV, Application, TailoredCV, TailoredCVSection
 from app.domain.exceptions import (
     AIGenerationError,
@@ -120,6 +121,45 @@ async def test_malformed_json_raises_invalid_ai_response() -> None:
 
     with pytest.raises(InvalidAIResponseError):
         await service.tailor(user_id="user-1", job_description="JD")
+
+
+class _SequenceAIClient(AIClient):
+    """Returns queued responses in order, counting calls — models a provider
+    whose first structured output is malformed and whose next one is valid."""
+
+    def __init__(self, responses: list[str]) -> None:
+        self._responses = responses
+        self.calls = 0
+
+    async def generate(self, *, system: str, prompt: str) -> str:
+        response = self._responses[self.calls]
+        self.calls += 1
+        return response
+
+
+async def test_retries_once_on_malformed_output_then_succeeds() -> None:
+    # First response is invalid JSON (transient small-model glitch), second is
+    # valid — tailor() should recover rather than surface an error.
+    ai = _SequenceAIClient(["null on a field, not json", DEFAULT_STRUCTURED_AI_RESPONSE])
+    service, cv_repository, _, _ = _make_service()
+    service._ai_client = ai  # type: ignore[assignment]
+    await _seed_base_resume(cv_repository, "user-1")
+
+    result = await service.tailor(user_id="user-1", job_description="JD")
+
+    assert result.sections  # a valid tailored CV came back
+    assert ai.calls == 2  # exactly one retry
+
+
+async def test_gives_up_after_max_attempts_on_persistent_malformed_output() -> None:
+    ai = _SequenceAIClient(["bad one", "bad two", "bad three", "bad four"])
+    service, cv_repository, _, _ = _make_service()
+    service._ai_client = ai  # type: ignore[assignment]
+    await _seed_base_resume(cv_repository, "user-1")
+
+    with pytest.raises(InvalidAIResponseError):
+        await service.tailor(user_id="user-1", job_description="JD")
+    assert ai.calls == 3  # bounded to _MAX_GENERATION_ATTEMPTS — no infinite retry
 
 
 async def test_missing_sections_key_raises_invalid_ai_response() -> None:

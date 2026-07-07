@@ -7,6 +7,9 @@ Rules:
 - Mirror important keywords from the job description where they truthfully apply.
 - Break the tailored CV into logical sections (e.g. Summary, Experience, Skills, Education).
 - Give each section a short, stable, lowercase `id` (e.g. "summary", "experience", "skills").
+- On every section, `id`, `heading`, and `body` MUST be non-empty strings and
+  `changed` MUST be `true` or `false` — never null or omitted, even for a
+  carried-over/unchanged section. `explanation` is the ONLY field that may be null.
 - For each section, set `"changed": true` if you altered it from the original CV
   (reworded, reordered, trimmed, or re-emphasized), or `"changed": false` if it is
   carried over unchanged.

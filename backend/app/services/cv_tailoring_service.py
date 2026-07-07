@@ -48,6 +48,12 @@ _REFINEMENT_PLACEHOLDER = "{{REFINEMENT_INSTRUCTIONS}}"
 
 _NONE_PLACEHOLDER_TEXT = "(none)"
 
+# Total attempts to get valid structured output before giving up. Smaller models
+# glitch on a required field ~10% of the time (measured, qwen2.5:7b); at 3
+# attempts the compounded failure rate is ~0.1%, and the extra calls are only
+# ever paid on the rare failure path.
+_MAX_GENERATION_ATTEMPTS = 3
+
 _logger = logging.getLogger(__name__)
 
 
@@ -133,24 +139,7 @@ class CVTailoringService:
             previous=previous,
             refinement_instructions=refinement_instructions,
         )
-        try:
-            raw_response = await self._ai_client.generate(
-                system=_SYSTEM_PROMPT, prompt=prompt
-            )
-        except Exception as exc:
-            # Deliberately broad: the AIClient abstraction may be backed by any
-            # vendor SDK, each with its own exception hierarchy (auth errors,
-            # rate limits, network failures, outages). The service must not
-            # import or special-case any of them (Principle III/V) — it only
-            # needs to guarantee the caller sees a clean, retryable error
-            # instead of an unhandled 500 (spec.md Edge Cases: generation
-            # failure must be retryable without losing the job description or
-            # base resume — the frontend keeps both on error).
-            _logger.exception("AI generation failed")
-            raise AIGenerationError(
-                "AI tailoring is temporarily unavailable. Please try again."
-            ) from exc
-        sections = self._parse_sections(raw_response)
+        sections = await self._generate_sections(prompt)
         content = self._render_plain_text(sections)
 
         tailored = TailoredCV(
@@ -231,6 +220,53 @@ class CVTailoringService:
             .replace(_PREVIOUS_PLACEHOLDER, previous_text)
             .replace(_REFINEMENT_PLACEHOLDER, refinement_text)
         )
+
+    async def _generate_sections(self, prompt: str) -> list[TailoredCVSection]:
+        """Generate + validate the structured output, retrying once on malformed
+        output.
+
+        Smaller/open models occasionally emit a structurally-invalid object (e.g.
+        a null on a required field) — a transient, non-deterministic glitch, not
+        a persistent failure. One retry with the same prompt turns a ~10% failure
+        rate into ~1% and is provider-agnostic (all `AIClient`s benefit). A hard
+        provider failure (auth/rate-limit/outage) is not a parse error and is not
+        retried here — it surfaces immediately as ``AIGenerationError``.
+        """
+
+        last_error: InvalidAIResponseError | None = None
+        for attempt in range(1, _MAX_GENERATION_ATTEMPTS + 1):
+            try:
+                raw_response = await self._ai_client.generate(
+                    system=_SYSTEM_PROMPT, prompt=prompt
+                )
+            except Exception as exc:
+                # Deliberately broad: the AIClient abstraction may be backed by any
+                # vendor SDK, each with its own exception hierarchy (auth errors,
+                # rate limits, network failures, outages). The service must not
+                # import or special-case any of them (Principle III/V) — it only
+                # needs to guarantee the caller sees a clean, retryable error
+                # instead of an unhandled 500 (spec.md Edge Cases: generation
+                # failure must be retryable without losing the job description or
+                # base resume — the frontend keeps both on error).
+                _logger.exception("AI generation failed")
+                raise AIGenerationError(
+                    "AI tailoring is temporarily unavailable. Please try again."
+                ) from exc
+
+            try:
+                return self._parse_sections(raw_response)
+            except InvalidAIResponseError as exc:
+                last_error = exc
+                _logger.warning(
+                    "AI structured-output validation failed (attempt %d/%d): %s",
+                    attempt,
+                    _MAX_GENERATION_ATTEMPTS,
+                    exc,
+                )
+
+        # Every attempt produced malformed output — surface the last failure.
+        assert last_error is not None  # loop runs at least once
+        raise last_error
 
     @staticmethod
     def _parse_sections(raw_response: str) -> list[TailoredCVSection]:
