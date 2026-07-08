@@ -33,3 +33,35 @@ npx supabase migration new <name>   # creates a timestamped file in migrations/
 # edit the SQL, then:
 npx supabase db reset               # re-apply from scratch to verify
 ```
+
+## Applying migrations to production (CI)
+
+Migrations are applied to the hosted Supabase project by the
+[`Database Migrations`](../.github/workflows/db-migrations.yml) GitHub Actions
+workflow — **never by hand**. On every push to `main` that touches
+`supabase/migrations/**`, the workflow runs `supabase db push`, which applies
+only migrations not yet recorded remotely. Merging a PR that adds a migration
+ships it automatically.
+
+### One-time setup
+
+1. **Add two repo secrets** (Settings → Secrets and variables → Actions):
+   - `SUPABASE_ACCESS_TOKEN` — a personal access token from
+     <https://supabase.com/dashboard/account/tokens>.
+   - `SUPABASE_DB_PASSWORD` — the project's database password
+     (Project Settings → Database → Connection string / reset password).
+
+   The project ref (`bezcaappcvbtreqdcpov`) is not secret and lives in the
+   workflow `env`.
+
+2. **Baseline the pre-existing migrations.** The first three migrations were
+   applied by hand before this pipeline existed, and they are not idempotent, so
+   `db push` would fail trying to re-run them. Run the workflow once in
+   `repair-baseline` mode to record them as applied *without* executing their
+   SQL:
+
+   - Actions → **Database Migrations** → Run workflow → `mode: repair-baseline`,
+   - or: `gh workflow run db-migrations.yml -f mode=repair-baseline`.
+
+   After that, all normal pushes/`mode: push` runs apply only genuinely pending
+   migrations. This baseline step is needed exactly once.
