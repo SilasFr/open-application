@@ -295,6 +295,32 @@ export default function TailorResult({
 
       <div className="mt-3 flex flex-col gap-5 lg:flex-row">
         <div className="flex-1 rounded-[var(--radius-token-lg)] border border-[var(--border-default)] bg-[var(--surface-card)] px-6 py-7">
+          {tailored.contact && (
+            <div className="mb-5 border-b border-[var(--border-default)] pb-4 text-center">
+              <h2 className="m-0 text-lg font-bold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-primary)]">
+                {tailored.contact.name}
+              </h2>
+              <p className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-[color:var(--text-tertiary)]">
+                {[
+                  tailored.contact.email,
+                  tailored.contact.phone,
+                  ...tailored.contact.links.map((l) => l.label),
+                ]
+                  .filter(Boolean)
+                  .map((part, i, arr) => (
+                    <span key={i}>
+                      {part}
+                      {i < arr.length - 1 && <span className="ml-2">·</span>}
+                    </span>
+                  ))}
+              </p>
+              {tailored.contact.location && (
+                <p className="m-0 text-xs text-[color:var(--text-tertiary)]">
+                  {tailored.contact.location}
+                </p>
+              )}
+            </div>
+          )}
           {tailored.sections.map((section) => {
             const isSelected = selectedSectionId === section.id;
             return (
@@ -329,9 +355,43 @@ export default function TailorResult({
                 <h3 className="m-0 text-xs font-semibold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-tertiary)]">
                   {section.heading}
                 </h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
-                  {section.body}
-                </p>
+                {section.body && (
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
+                    {section.body}
+                  </p>
+                )}
+                {section.entries.map((entry, i) => (
+                  <div key={i} className="mt-2">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-semibold text-[color:var(--text-primary)]">
+                        {entry.title}
+                        {entry.organization && (
+                          <span className="font-normal text-[color:var(--text-secondary)]">
+                            {" — "}
+                            {entry.organization}
+                          </span>
+                        )}
+                      </span>
+                      {entry.date_range && (
+                        <span className="shrink-0 text-xs text-[color:var(--text-tertiary)]">
+                          {entry.date_range}
+                        </span>
+                      )}
+                    </div>
+                    {entry.context && (
+                      <p className="m-0 text-xs italic text-[color:var(--text-tertiary)]">
+                        {entry.context}
+                      </p>
+                    )}
+                    {entry.bullets.length > 0 && (
+                      <ul className="mt-1 list-disc pl-5 text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
+                        {entry.bullets.map((bullet, j) => (
+                          <li key={j}>{bullet}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
               </div>
             );
           })}

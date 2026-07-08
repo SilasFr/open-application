@@ -13,7 +13,14 @@ from typing import Any
 import anyio
 from supabase import Client
 
-from app.domain.entities import CV, TailoredCV, TailoredCVSection
+from app.domain.entities import (
+    CV,
+    ContactLink,
+    TailoredCV,
+    TailoredCVContact,
+    TailoredCVEntry,
+    TailoredCVSection,
+)
 from app.domain.repositories import CVRepository, TailoredCVRepository
 
 _CV_BUCKET = "cvs"
@@ -41,6 +48,33 @@ def _cv_to_entity(row: Any) -> CV:
     )
 
 
+def _contact_to_json(contact: TailoredCVContact | None) -> dict[str, Any] | None:
+    if contact is None:
+        return None
+    return {
+        "name": contact.name,
+        "email": contact.email,
+        "phone": contact.phone,
+        "location": contact.location,
+        "links": [{"label": link.label, "url": link.url} for link in contact.links],
+    }
+
+
+def _contact_from_json(data: Any) -> TailoredCVContact | None:
+    if not data:
+        return None
+    return TailoredCVContact(
+        name=data.get("name", ""),
+        email=data.get("email"),
+        phone=data.get("phone"),
+        location=data.get("location"),
+        links=[
+            ContactLink(label=link["label"], url=link["url"])
+            for link in (data.get("links") or [])
+        ],
+    )
+
+
 def _tailored_to_row(tailored: TailoredCV) -> dict[str, Any]:
     return {
         "id": tailored.id,
@@ -48,6 +82,7 @@ def _tailored_to_row(tailored: TailoredCV) -> dict[str, Any]:
         "source_cv_id": tailored.source_cv_id,
         "job_description": tailored.job_description,
         "content": tailored.content,
+        "contact": _contact_to_json(tailored.contact),
         "sections": [
             {
                 "id": section.id,
@@ -55,6 +90,16 @@ def _tailored_to_row(tailored: TailoredCV) -> dict[str, Any]:
                 "body": section.body,
                 "changed": section.changed,
                 "explanation": section.explanation,
+                "entries": [
+                    {
+                        "title": entry.title,
+                        "organization": entry.organization,
+                        "date_range": entry.date_range,
+                        "context": entry.context,
+                        "bullets": list(entry.bullets),
+                    }
+                    for entry in section.entries
+                ],
             }
             for section in tailored.sections
         ],
@@ -70,8 +115,18 @@ def _tailored_to_entity(row: Any) -> TailoredCV:
         TailoredCVSection(
             id=str(section["id"]),
             heading=section["heading"],
-            body=section["body"],
             changed=bool(section["changed"]),
+            body=section.get("body"),
+            entries=[
+                TailoredCVEntry(
+                    title=entry["title"],
+                    organization=entry.get("organization"),
+                    date_range=entry.get("date_range"),
+                    context=entry.get("context"),
+                    bullets=list(entry.get("bullets") or []),
+                )
+                for entry in (section.get("entries") or [])
+            ],
             explanation=section.get("explanation"),
         )
         for section in (row.get("sections") or [])
@@ -83,6 +138,7 @@ def _tailored_to_entity(row: Any) -> TailoredCV:
         job_description=row["job_description"],
         content=row["content"],
         created_at=datetime.fromisoformat(row["created_at"]),
+        contact=_contact_from_json(row.get("contact")),
         sections=sections,
         application_id=row.get("application_id"),
         refinement_instructions=row.get("refinement_instructions"),

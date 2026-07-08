@@ -12,7 +12,13 @@ import anyio
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from app.domain.ai import AIClient
-from app.domain.entities import TailoredCV, TailoredCVSection
+from app.domain.entities import (
+    ContactLink,
+    TailoredCV,
+    TailoredCVContact,
+    TailoredCVEntry,
+    TailoredCVSection,
+)
 from app.domain.exceptions import (
     AIGenerationError,
     BaseResumeNotFoundError,
@@ -57,20 +63,61 @@ _MAX_GENERATION_ATTEMPTS = 3
 _logger = logging.getLogger(__name__)
 
 
+class _ContactLinkModel(BaseModel):
+    """A labelled URL in the CV header."""
+
+    label: str
+    url: str
+
+
+class _ContactModel(BaseModel):
+    """Header/contact details extracted from the base resume."""
+
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    links: list[_ContactLinkModel] = Field(default_factory=list)
+
+
+class _EntryModel(BaseModel):
+    """A structured item within a section (a role, degree, etc.)."""
+
+    title: str
+    organization: str | None = None
+    date_range: str | None = None
+    context: str | None = None
+    bullets: list[str] = Field(default_factory=list)
+
+
 class _SectionModel(BaseModel):
-    """Validates a single section of the AI's structured JSON response."""
+    """Validates a single section of the AI's structured JSON response.
+
+    A section renders from either ``body`` (prose) or ``entries`` (structured);
+    at least one must be present and non-empty.
+    """
 
     id: str
     heading: str
-    body: str
     changed: bool
+    body: str | None = None
+    entries: list[_EntryModel] = Field(default_factory=list)
     explanation: str | None = None
+
+    @model_validator(mode="after")
+    def _requires_body_or_entries(self) -> _SectionModel:
+        if not (self.body or "").strip() and not self.entries:
+            raise ValueError(
+                f"section '{self.id}' has neither body text nor entries"
+            )
+        return self
 
 
 class _StructuredOutputModel(BaseModel):
-    """Validates the AI's full structured JSON response (data-model.md rules:
-    non-empty sections list; every changed section has a non-null explanation)."""
+    """Validates the AI's full structured JSON response: a contact header plus a
+    non-empty sections list; every changed section has a non-null explanation."""
 
+    contact: _ContactModel
     sections: list[_SectionModel] = Field(min_length=1)
 
     @model_validator(mode="after")
@@ -139,7 +186,7 @@ class CVTailoringService:
             previous=previous,
             refinement_instructions=refinement_instructions,
         )
-        sections = await self._generate_sections(prompt)
+        contact, sections = await self._generate_structured(prompt)
         content = self._render_plain_text(sections)
 
         tailored = TailoredCV(
@@ -149,6 +196,7 @@ class CVTailoringService:
             job_description=jd.text,
             content=content,
             created_at=datetime.now(UTC),
+            contact=contact,
             sections=sections,
             application_id=None,
             refinement_instructions=refinement_instructions,
@@ -188,11 +236,11 @@ class CVTailoringService:
         fmt: Literal["pdf", "docx"]
         if format == "pdf":
             fmt = "pdf"
-            data = await anyio.to_thread.run_sync(render_pdf, tailored.sections)
+            data = await anyio.to_thread.run_sync(render_pdf, tailored)
             content_type = PDF_CONTENT_TYPE
         elif format == "docx":
             fmt = "docx"
-            data = await anyio.to_thread.run_sync(render_docx, tailored.sections)
+            data = await anyio.to_thread.run_sync(render_docx, tailored)
             content_type = DOCX_CONTENT_TYPE
         else:
             raise DomainError(f"Unsupported download format: {format!r}")
@@ -221,7 +269,9 @@ class CVTailoringService:
             .replace(_REFINEMENT_PLACEHOLDER, refinement_text)
         )
 
-    async def _generate_sections(self, prompt: str) -> list[TailoredCVSection]:
+    async def _generate_structured(
+        self, prompt: str
+    ) -> tuple[TailoredCVContact, list[TailoredCVSection]]:
         """Generate + validate the structured output, retrying once on malformed
         output.
 
@@ -254,7 +304,7 @@ class CVTailoringService:
                 ) from exc
 
             try:
-                return self._parse_sections(raw_response)
+                return self._parse_structured(raw_response)
             except InvalidAIResponseError as exc:
                 last_error = exc
                 _logger.warning(
@@ -269,7 +319,9 @@ class CVTailoringService:
         raise last_error
 
     @staticmethod
-    def _parse_sections(raw_response: str) -> list[TailoredCVSection]:
+    def _parse_structured(
+        raw_response: str,
+    ) -> tuple[TailoredCVContact, list[TailoredCVSection]]:
         try:
             data = json.loads(raw_response)
         except json.JSONDecodeError as exc:
@@ -282,17 +334,56 @@ class CVTailoringService:
                 f"AI response failed structured-output validation: {exc}"
             ) from exc
 
-        return [
+        contact = TailoredCVContact(
+            name=parsed.contact.name,
+            email=parsed.contact.email,
+            phone=parsed.contact.phone,
+            location=parsed.contact.location,
+            links=[
+                ContactLink(label=link.label, url=link.url)
+                for link in parsed.contact.links
+            ],
+        )
+        sections = [
             TailoredCVSection(
                 id=section.id,
                 heading=section.heading,
-                body=section.body,
                 changed=section.changed,
+                body=section.body,
+                entries=[
+                    TailoredCVEntry(
+                        title=entry.title,
+                        organization=entry.organization,
+                        date_range=entry.date_range,
+                        context=entry.context,
+                        bullets=list(entry.bullets),
+                    )
+                    for entry in section.entries
+                ],
                 explanation=section.explanation,
             )
             for section in parsed.sections
         ]
+        return contact, sections
 
     @staticmethod
     def _render_plain_text(sections: list[TailoredCVSection]) -> str:
-        return "\n\n".join(f"{s.heading}\n{s.body}" for s in sections)
+        """Flatten sections to plain text for the stored ``content`` field
+        (search/preview) — the styled document is rendered separately."""
+
+        blocks: list[str] = []
+        for section in sections:
+            lines = [section.heading]
+            if section.body:
+                lines.append(section.body)
+            for entry in section.entries:
+                header = " — ".join(
+                    part for part in (entry.title, entry.organization) if part
+                )
+                if entry.date_range:
+                    header = f"{header} ({entry.date_range})" if header else entry.date_range
+                if header:
+                    lines.append(header)
+                lines.extend(f"- {bullet}" for bullet in entry.bullets)
+            blocks.append("\n".join(lines))
+        return "\n\n".join(blocks)

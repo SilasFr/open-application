@@ -211,15 +211,39 @@ class InMemoryTailoredCVRepository(TailoredCVRepository):
 # for FakeAIClient, so happy-path tests don't each have to build their own JSON.
 DEFAULT_STRUCTURED_AI_RESPONSE = json.dumps(
     {
+        "contact": {
+            "name": "Jane Doe",
+            "email": "jane@example.com",
+            "phone": None,
+            "location": "Remote",
+            "links": [{"label": "GitHub", "url": "https://github.com/janedoe"}],
+        },
         "sections": [
             {
                 "id": "summary",
                 "heading": "Summary",
-                "body": "Experienced engineer with a track record of shipping.",
                 "changed": True,
+                "body": "Experienced engineer with a track record of shipping.",
+                "entries": [],
                 "explanation": "Reworded to emphasize experience relevant to the role.",
-            }
-        ]
+            },
+            {
+                "id": "experience",
+                "heading": "Professional Experience",
+                "changed": False,
+                "body": None,
+                "entries": [
+                    {
+                        "title": "Software Engineer",
+                        "organization": "Foo Inc",
+                        "date_range": "2020 – 2024",
+                        "context": None,
+                        "bullets": ["Built and shipped Python services."],
+                    }
+                ],
+                "explanation": None,
+            },
+        ],
     }
 )
 
