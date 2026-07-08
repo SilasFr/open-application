@@ -76,11 +76,33 @@ export interface BaseResume {
   created_at: string;
 }
 
+export interface ContactLink {
+  label: string;
+  url: string;
+}
+
+export interface TailoredCVContact {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  location: string | null;
+  links: ContactLink[];
+}
+
+export interface TailoredCVEntry {
+  title: string;
+  organization: string | null;
+  date_range: string | null;
+  context: string | null;
+  bullets: string[];
+}
+
 export interface TailoredCVSection {
   id: string;
   heading: string;
-  body: string;
   changed: boolean;
+  body: string | null;
+  entries: TailoredCVEntry[];
   explanation: string | null;
 }
 
@@ -89,6 +111,7 @@ export interface TailoredCV {
   source_cv_id: string | null;
   job_description: string;
   content: string;
+  contact: TailoredCVContact | null;
   sections: TailoredCVSection[];
   application_id: string | null;
   previous_tailored_cv_id: string | null;

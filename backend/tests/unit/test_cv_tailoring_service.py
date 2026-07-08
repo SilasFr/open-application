@@ -9,7 +9,15 @@ from uuid import uuid4
 import pytest
 
 from app.domain.ai import AIClient
-from app.domain.entities import CV, Application, TailoredCV, TailoredCVSection
+from app.domain.entities import (
+    CV,
+    Application,
+    ContactLink,
+    TailoredCV,
+    TailoredCVContact,
+    TailoredCVEntry,
+    TailoredCVSection,
+)
 from app.domain.exceptions import (
     AIGenerationError,
     DomainError,
@@ -75,10 +83,21 @@ async def test_tailor_fills_template_and_returns_structured_sections() -> None:
     )
 
     assert result.user_id == "user-1"
-    assert len(result.sections) == 1
-    assert result.sections[0].changed is True
-    assert result.sections[0].explanation
+    assert result.contact is not None
+    assert result.contact.name == "Jane Doe"
+    assert len(result.sections) == 2
+    summary = result.sections[0]
+    assert summary.changed is True
+    assert summary.explanation
+    assert summary.body
+    # The structured experience section carries entries, not prose body.
+    experience = result.sections[1]
+    assert experience.body is None
+    assert experience.entries[0].title == "Software Engineer"
+    assert experience.entries[0].bullets
     assert "Summary" in result.content
+    # Entry content is flattened into the stored plain-text content too.
+    assert "Software Engineer" in result.content
     # The template placeholders were substituted before hitting the client.
     assert ai.last_prompt is not None
     assert "Jane Doe, Python engineer" in ai.last_prompt
@@ -184,6 +203,7 @@ async def test_changed_section_without_explanation_raises_invalid_ai_response() 
     ai = FakeAIClient(
         response=json.dumps(
             {
+                "contact": {"name": "Jane Doe"},
                 "sections": [
                     {
                         "id": "summary",
@@ -192,7 +212,7 @@ async def test_changed_section_without_explanation_raises_invalid_ai_response() 
                         "changed": True,
                         "explanation": None,
                     }
-                ]
+                ],
             }
         )
     )
@@ -285,6 +305,71 @@ async def test_attach_to_unowned_application_raises_not_found() -> None:
 
     with pytest.raises(NotFoundError):
         await service.attach("user-1", tailored.id, "does-not-exist")
+
+
+async def test_section_without_body_or_entries_raises_invalid_ai_response() -> None:
+    ai = FakeAIClient(
+        response=json.dumps(
+            {
+                "contact": {"name": "Jane Doe"},
+                "sections": [
+                    {
+                        "id": "summary",
+                        "heading": "Summary",
+                        "body": None,
+                        "entries": [],
+                        "changed": False,
+                        "explanation": None,
+                    }
+                ],
+            }
+        )
+    )
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    with pytest.raises(InvalidAIResponseError):
+        await service.tailor(user_id="user-1", job_description="JD")
+
+
+async def test_render_with_contact_and_entries_produces_bytes() -> None:
+    service, _, _, _ = _make_service()
+    tailored = TailoredCV(
+        id=str(uuid4()),
+        user_id="user-1",
+        source_cv_id=None,
+        job_description="JD",
+        content="...",
+        created_at=datetime.now(UTC),
+        contact=TailoredCVContact(
+            name="Jane Doe",
+            email="jane@example.com",
+            location="Remote",
+            links=[ContactLink(label="GitHub", url="https://github.com/janedoe")],
+        ),
+        sections=[
+            TailoredCVSection(
+                id="experience",
+                heading="Professional Experience",
+                changed=True,
+                entries=[
+                    TailoredCVEntry(
+                        title="Senior Engineer",
+                        organization="Foo Inc",
+                        date_range="2020 – 2024",
+                        context="Fintech",
+                        bullets=["Built <Python> & Go APIs.", "Owned reliability."],
+                    )
+                ],
+                explanation="Led with the most relevant role.",
+            )
+        ],
+    )
+
+    pdf_bytes, _, _ = await service.render(tailored, format="pdf")
+    docx_bytes, _, _ = await service.render(tailored, format="docx")
+    assert pdf_bytes.startswith(b"%PDF")
+    assert docx_bytes.startswith(b"PK")
 
 
 async def test_render_pdf_and_docx_produce_bytes() -> None:

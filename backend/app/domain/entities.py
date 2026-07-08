@@ -77,18 +77,52 @@ class CV:
 
 
 @dataclass
+class ContactLink:
+    """A labelled URL in the CV header (e.g. LinkedIn, GitHub)."""
+
+    label: str
+    url: str
+
+
+@dataclass
+class TailoredCVContact:
+    """Header/contact details for a tailored CV, extracted from the base resume."""
+
+    name: str
+    email: str | None = None
+    phone: str | None = None
+    location: str | None = None
+    links: list[ContactLink] = field(default_factory=list)
+
+
+@dataclass
+class TailoredCVEntry:
+    """A structured item within a section — a role, degree, or similar, with an
+    optional right-aligned date range and its own bullet points."""
+
+    title: str
+    organization: str | None = None
+    date_range: str | None = None
+    context: str | None = None
+    bullets: list[str] = field(default_factory=list)
+
+
+@dataclass
 class TailoredCVSection:
     """A single section of a structured, AI-tailored CV.
 
-    Sections with ``changed=True`` must carry a non-null ``explanation``; this is
-    enforced by the service layer when validating the AI's structured output, not
-    by this dataclass itself.
+    A section is rendered from either ``body`` (prose sections like Summary or
+    Skills) or ``entries`` (structured sections like Experience or Education) —
+    at least one is populated, enforced by the service's structured-output
+    validation. Sections with ``changed=True`` must carry a non-null
+    ``explanation`` (also enforced there, not by this dataclass).
     """
 
     id: str
     heading: str
-    body: str
     changed: bool
+    body: str | None = None
+    entries: list[TailoredCVEntry] = field(default_factory=list)
     explanation: str | None = None
 
 
@@ -102,6 +136,7 @@ class TailoredCV:
     job_description: str
     content: str
     created_at: datetime
+    contact: TailoredCVContact | None = None
     sections: list[TailoredCVSection] = field(default_factory=list)
     application_id: str | None = None
     refinement_instructions: str | None = None
