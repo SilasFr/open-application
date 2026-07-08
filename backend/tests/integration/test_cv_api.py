@@ -372,6 +372,7 @@ def test_malformed_ai_response_returns_422() -> None:
         InMemoryCVRepository,
         InMemoryTailoredCVRepository,
     )
+    from tests.integration.conftest import TEST_PROMPTS
 
     app = create_app()
     cv_repository = InMemoryCVRepository()
@@ -381,7 +382,7 @@ def test_malformed_ai_response_returns_422() -> None:
     app.dependency_overrides[get_cv_service] = lambda: CVService(cv_repository)
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
         FakeAIClient(response="not valid json at all"),
-        "CV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}",
+        TEST_PROMPTS,
         cv_repository,
         tailored_repository,
         application_repository,

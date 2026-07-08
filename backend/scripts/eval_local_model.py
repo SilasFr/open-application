@@ -1,30 +1,31 @@
-"""Quality probe for a local/open CV-tailoring model.
+"""Quality probe for the decomposed CV-tailoring pipeline against a local model.
 
-Runs a few CV + job-description pairs through a live OpenAI-compatible endpoint
-(local Ollama by default) using the *real* system prompt, template, and
-structured-output validation from the tailoring service — so a "pass" here means
-the model's raw output would survive the actual request path.
+Runs the three focused sub-calls (contact / prose / experience) through a live
+OpenAI-compatible endpoint (local Ollama by default) using the *real* prompt
+templates, system prompt, and per-shape validators from the tailoring service —
+so a "pass" here means the model's raw output would survive the actual request
+path. Reports per-call and overall (all-three-valid) success across N runs.
 
 Usage (with Ollama running and the model pulled):
 
     uv run python -m scripts.eval_local_model
-    AI_BASE_URL=http://localhost:11434/v1 AI_MODEL=qwen2.5:7b-instruct \\
-        uv run python -m scripts.eval_local_model
+    EVAL_RUNS=20 AI_MODEL=qwen2.5:7b-instruct uv run python -m scripts.eval_local_model
 
-Exit code is non-zero if any case fails validation, so it doubles as a smoke gate.
+Exit code is non-zero if any run fails, so it doubles as a smoke gate.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import time
-
-from pydantic import ValidationError
+from collections import Counter
 
 from app.infrastructure.ai.openai_compatible_client import OpenAICompatibleClient
 from app.infrastructure.ai.prompts import load_prompt
+
+# Reuse the service's real system prompt, placeholders, and per-shape validators
+# so this measures exactly what production validates.
 from app.services.cv_tailoring_service import (
     _CV_PLACEHOLDER,
     _JD_PLACEHOLDER,
@@ -32,37 +33,34 @@ from app.services.cv_tailoring_service import (
     _PREVIOUS_PLACEHOLDER,
     _REFINEMENT_PLACEHOLDER,
     _SYSTEM_PROMPT,
-    _StructuredOutputModel,
+    CVTailoringService,
+    _ContactResult,
+    _EntrySectionsResult,
+    _ProseSectionsResult,
 )
 
-# A couple of small, realistic CV/JD pairs. Enough to catch JSON-shape and
-# instruction-following regressions without a full benchmark.
-_CASES: list[tuple[str, str, str]] = [
-    (
-        "backend engineer",
-        "Jane Doe\nSoftware Engineer\n\nExperience:\n"
-        "- Backend Engineer, Foo Inc (2020-2024): built Python/Go APIs, scaled to 1M req/day.\n"
-        "- Frontend Engineer, Bar Corp (2018-2020): React dashboards.\n\n"
-        "Skills: Python, Go, React, TypeScript, AWS, PostgreSQL",
-        "We're hiring a Senior Backend Engineer strong in Python and distributed "
-        "systems to own our API platform. PostgreSQL and AWS a plus.",
-    ),
-    (
-        "data analyst",
-        "John Smith\nAnalyst\n\nExperience:\n"
-        "- Data Analyst, Acme (2021-2024): SQL reporting, Tableau dashboards, A/B tests.\n\n"
-        "Skills: SQL, Python, Tableau, statistics",
-        "Seeking a Data Analyst comfortable with SQL and experimentation to drive "
-        "product decisions. Dashboarding experience required.",
-    ),
-]
+_SAMPLE_CV = (
+    "Jane Doe\nSenior Software Engineer\n"
+    "jane@example.com | +1 555 0100 | linkedin.com/in/janedoe | github.com/janedoe\n"
+    "Berlin, Germany (Remote)\n\n"
+    "Summary: Backend engineer with 6 years building high-throughput services.\n\n"
+    "Experience:\n"
+    "- Senior Backend Engineer, Foo Inc (2020-2024): built Python/Go APIs, scaled to 1M req/day, "
+    "owned reliability to 99.9% uptime.\n"
+    "- Backend Engineer, Bar Corp (2018-2020): payments integrations in Python.\n\n"
+    "Skills: Python, Go, TypeScript, PostgreSQL, AWS, Docker, Kubernetes\n\n"
+    "Education: BSc Computer Science, State University (2014-2018)"
+)
+_SAMPLE_JD = (
+    "We're hiring a Senior Backend Engineer strong in Python and distributed systems to own our "
+    "API platform. PostgreSQL and AWS a plus. You will mentor engineers and drive reliability."
+)
 
 
-def _build_prompt(template: str, cv_text: str, job_description: str) -> str:
-    """Mirror CVTailoringService._build_prompt for the no-refinement case."""
+def _fill(template: str) -> str:
     return (
-        template.replace(_CV_PLACEHOLDER, cv_text)
-        .replace(_JD_PLACEHOLDER, job_description)
+        template.replace(_CV_PLACEHOLDER, _SAMPLE_CV)
+        .replace(_JD_PLACEHOLDER, _SAMPLE_JD)
         .replace(_PREVIOUS_PLACEHOLDER, _NONE_PLACEHOLDER_TEXT)
         .replace(_REFINEMENT_PLACEHOLDER, _NONE_PLACEHOLDER_TEXT)
     )
@@ -73,41 +71,44 @@ async def main() -> int:
     model = os.environ.get("AI_MODEL", "qwen2.5:7b-instruct")
     api_key = os.environ.get("AI_API_KEY", "")
     max_tokens = int(os.environ.get("AI_MAX_TOKENS", "4096"))
+    runs = int(os.environ.get("EVAL_RUNS", "20"))
 
     client = OpenAICompatibleClient(
         base_url=base_url, api_key=api_key, model=model, max_tokens=max_tokens
     )
-    template = load_prompt("cv_tailoring_structured")
 
-    print(f"Endpoint: {base_url}  Model: {model}\n")
-    failures = 0
-    for label, cv_text, jd in _CASES:
-        prompt = _build_prompt(template, cv_text, jd)
-        started = time.monotonic()
-        try:
+    tasks = [
+        ("contact", _fill(load_prompt("cv_contact")), _ContactResult),
+        ("prose", _fill(load_prompt("cv_prose_sections")), _ProseSectionsResult),
+        ("experience", _fill(load_prompt("cv_experience")), _EntrySectionsResult),
+    ]
+
+    print(f"Endpoint: {base_url}  Model: {model}  Runs: {runs}\n")
+    per_call_ok: Counter[str] = Counter()
+    overall_ok = 0
+    started = time.monotonic()
+
+    for i in range(runs):
+        run_all_ok = True
+        for label, prompt, validator in tasks:
             raw = await client.generate(system=_SYSTEM_PROMPT, prompt=prompt)
-        except Exception as exc:  # noqa: BLE001 - eval script reports, doesn't raise
-            failures += 1
-            print(f"[FAIL] {label}: request error: {exc}")
-            continue
-        elapsed = time.monotonic() - started
+            try:
+                # Reuse the service's exact parse/validate path.
+                CVTailoringService._parse_json(raw, validator)
+                per_call_ok[label] += 1
+            except Exception as exc:  # noqa: BLE001 - eval reports, doesn't raise
+                run_all_ok = False
+                first_line = str(exc).splitlines()[0]
+                print(f"  run {i + 1}: [{label}] FAIL: {first_line}")
+        if run_all_ok:
+            overall_ok += 1
 
-        try:
-            parsed = _StructuredOutputModel.model_validate(json.loads(raw))
-        except (json.JSONDecodeError, ValidationError) as exc:
-            failures += 1
-            print(f"[FAIL] {label}: invalid structured output ({elapsed:.1f}s): {exc}")
-            print(f"       raw (first 200 chars): {raw[:200]!r}")
-            continue
-
-        changed = sum(1 for s in parsed.sections if s.changed)
-        print(
-            f"[PASS] {label}: {len(parsed.sections)} sections "
-            f"({changed} changed) in {elapsed:.1f}s"
-        )
-
-    print(f"\n{len(_CASES) - failures}/{len(_CASES)} passed.")
-    return 1 if failures else 0
+    elapsed = time.monotonic() - started
+    print("\nPer-call valid-output rate:")
+    for label, _, _ in tasks:
+        print(f"  {label:11}: {per_call_ok[label]}/{runs}")
+    print(f"\nOverall (all three valid): {overall_ok}/{runs}  ({elapsed:.0f}s total)")
+    return 0 if overall_ok == runs else 1
 
 
 if __name__ == "__main__":
