@@ -21,22 +21,32 @@ from app.main import create_app
 from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
 from app.services.cv_service import CVService
-from app.services.cv_tailoring_service import CVTailoringService
+from app.services.cv_tailoring_service import CVTailoringService, TailoringPrompts
 from app.services.note_service import NoteService
 from app.services.task_service import TaskService
 from tests.fakes import (
-    FakeAIClient,
     InMemoryApplicationRepository,
     InMemoryContactRepository,
     InMemoryCVRepository,
     InMemoryNoteRepository,
     InMemoryTailoredCVRepository,
     InMemoryTaskRepository,
+    RoutingFakeAIClient,
 )
 
-_PROMPT = (
-    "CV:\n{{CV}}\n\nJD:\n{{JOB_DESCRIPTION}}\n\n"
-    "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\n\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+# Markered per-shape templates so RoutingFakeAIClient routes each of the three
+# sub-calls to its own valid canned response. Exported for the standalone
+# malformed-response test.
+TEST_PROMPTS = TailoringPrompts(
+    contact="Extract the contact header.\nCV:\n{{CV}}",
+    prose=(
+        "Tailor the prose sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+        "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+    ),
+    experience=(
+        "Tailor the Experience and Education.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+        "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+    ),
 )
 _TEST_USER_ID = "user-api"
 
@@ -64,7 +74,7 @@ def _override_services(app: FastAPI) -> None:
     )
     app.dependency_overrides[get_cv_service] = lambda: CVService(cv_repository)
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
-        FakeAIClient(), _PROMPT, cv_repository, tailored_repository, repository
+        RoutingFakeAIClient(), TEST_PROMPTS, cv_repository, tailored_repository, repository
     )
 
 

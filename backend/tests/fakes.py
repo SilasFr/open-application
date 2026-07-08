@@ -273,3 +273,111 @@ class FakeAIClient(AIClient):
         if self._error is not None:
             raise self._error
         return self._response
+
+
+# Per-sub-call canned responses for the decomposed tailoring pipeline, each valid
+# against its focused validator (contact / prose / experience).
+DEFAULT_CONTACT_RESPONSE = json.dumps(
+    {
+        "contact": {
+            "name": "Jane Doe",
+            "email": "jane@example.com",
+            "phone": None,
+            "location": "Remote",
+            "links": [{"label": "GitHub", "url": "https://github.com/janedoe"}],
+        }
+    }
+)
+
+DEFAULT_PROSE_RESPONSE = json.dumps(
+    {
+        "sections": [
+            {
+                "id": "summary",
+                "heading": "Summary",
+                "changed": True,
+                "body": "Experienced engineer with a track record of shipping.",
+                "explanation": "Reworded to emphasize experience relevant to the role.",
+            },
+            {
+                "id": "skills",
+                "heading": "Skills",
+                "changed": False,
+                "body": "Languages: Python, Go",
+                "explanation": None,
+            },
+        ]
+    }
+)
+
+DEFAULT_EXPERIENCE_RESPONSE = json.dumps(
+    {
+        "sections": [
+            {
+                "id": "experience",
+                "heading": "Professional Experience",
+                "changed": False,
+                "entries": [
+                    {
+                        "title": "Software Engineer",
+                        "organization": "Foo Inc",
+                        "date_range": "2020 – 2024",
+                        "context": None,
+                        "bullets": ["Built and shipped Python services."],
+                    }
+                ],
+                "explanation": None,
+            }
+        ]
+    }
+)
+
+
+class RoutingFakeAIClient(AIClient):
+    """Routes each tailoring sub-call to its own canned response by matching a
+    stable marker in the prompt, so the 3-call pipeline can be exercised without a
+    live model. Records the last prompt per task (for refine-threading assertions)
+    and counts calls (for retry assertions).
+
+    A task's response may be a single string (fixed) or a list of strings (a
+    sequence consumed per call, then repeating the last) to model a malformed
+    response that recovers on retry.
+    """
+
+    def __init__(
+        self,
+        *,
+        contact: str | list[str] = DEFAULT_CONTACT_RESPONSE,
+        prose: str | list[str] = DEFAULT_PROSE_RESPONSE,
+        experience: str | list[str] = DEFAULT_EXPERIENCE_RESPONSE,
+        error: Exception | None = None,
+    ) -> None:
+        self._queues: dict[str, list[str]] = {
+            "contact": [contact] if isinstance(contact, str) else list(contact),
+            "prose": [prose] if isinstance(prose, str) else list(prose),
+            "experience": (
+                [experience] if isinstance(experience, str) else list(experience)
+            ),
+        }
+        self._error = error
+        self.prompts: dict[str, str] = {}
+        self.calls: dict[str, int] = {"contact": 0, "prose": 0, "experience": 0}
+
+    @staticmethod
+    def _task_for(prompt: str) -> str:
+        if "contact header" in prompt:
+            return "contact"
+        if "prose sections" in prompt:
+            return "prose"
+        if "Experience and Education" in prompt:
+            return "experience"
+        raise AssertionError("prompt did not match any known tailoring sub-call")
+
+    async def generate(self, *, system: str, prompt: str) -> str:
+        task = self._task_for(prompt)
+        self.prompts[task] = prompt
+        self.calls[task] += 1
+        if self._error is not None:
+            raise self._error
+        queue = self._queues[task]
+        return queue.pop(0) if len(queue) > 1 else queue[0]

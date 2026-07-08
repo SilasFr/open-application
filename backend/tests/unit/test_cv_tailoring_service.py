@@ -1,4 +1,10 @@
-"""Unit tests for CVTailoringService against fakes (no network)."""
+"""Unit tests for CVTailoringService against fakes (no network).
+
+The service makes three focused AI calls (contact / prose / experience); tests
+drive them with ``RoutingFakeAIClient``, which returns a per-task canned response
+by matching a marker in each prompt. Error-path tests use ``FakeAIClient``, which
+returns the same response to every call (so all three sub-calls fail together).
+"""
 
 from __future__ import annotations
 
@@ -25,23 +31,35 @@ from app.domain.exceptions import (
     NotFoundError,
 )
 from app.domain.value_objects import ApplicationStatus
-from app.services.cv_tailoring_service import CVTailoringService
+from app.services.cv_tailoring_service import CVTailoringService, TailoringPrompts
 from tests.fakes import (
-    DEFAULT_STRUCTURED_AI_RESPONSE,
+    DEFAULT_PROSE_RESPONSE,
     FakeAIClient,
     InMemoryApplicationRepository,
     InMemoryCVRepository,
     InMemoryTailoredCVRepository,
+    RoutingFakeAIClient,
 )
 
-TEMPLATE = (
-    "CV:\n{{CV}}\n\nJD:\n{{JOB_DESCRIPTION}}\n\n"
-    "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\n\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+# Minimal test templates: each carries the routing marker RoutingFakeAIClient
+# keys on ("contact header" / "prose sections" / "Experience and Education") plus
+# the placeholders the service substitutes.
+_CONTACT_TEMPLATE = "Extract the contact header.\nCV:\n{{CV}}"
+_PROSE_TEMPLATE = (
+    "Tailor the prose sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+    "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+)
+_EXPERIENCE_TEMPLATE = (
+    "Tailor the Experience and Education.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+    "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
+)
+_PROMPTS = TailoringPrompts(
+    contact=_CONTACT_TEMPLATE, prose=_PROSE_TEMPLATE, experience=_EXPERIENCE_TEMPLATE
 )
 
 
 def _make_service(
-    ai_client: FakeAIClient | None = None,
+    ai_client: AIClient | None = None,
 ) -> tuple[
     CVTailoringService,
     InMemoryCVRepository,
@@ -52,8 +70,8 @@ def _make_service(
     tailored_repository = InMemoryTailoredCVRepository()
     application_repository = InMemoryApplicationRepository()
     service = CVTailoringService(
-        ai_client or FakeAIClient(),
-        TEMPLATE,
+        ai_client or RoutingFakeAIClient(),
+        _PROMPTS,
         cv_repository,
         tailored_repository,
         application_repository,
@@ -73,8 +91,8 @@ async def _seed_base_resume(repository: InMemoryCVRepository, user_id: str) -> C
     return await repository.replace(cv, b"docx-bytes", "application/docx")
 
 
-async def test_tailor_fills_template_and_returns_structured_sections() -> None:
-    ai = FakeAIClient(response=DEFAULT_STRUCTURED_AI_RESPONSE)
+async def test_tailor_assembles_contact_prose_and_entries() -> None:
+    ai = RoutingFakeAIClient()
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
@@ -85,24 +103,71 @@ async def test_tailor_fills_template_and_returns_structured_sections() -> None:
     assert result.user_id == "user-1"
     assert result.contact is not None
     assert result.contact.name == "Jane Doe"
-    assert len(result.sections) == 2
+    # summary + skills (prose) + experience (entries), canonically ordered.
+    assert [s.id for s in result.sections] == ["summary", "skills", "experience"]
     summary = result.sections[0]
     assert summary.changed is True
     assert summary.explanation
     assert summary.body
-    # The structured experience section carries entries, not prose body.
-    experience = result.sections[1]
+    assert not summary.entries
+    experience = result.sections[2]
     assert experience.body is None
     assert experience.entries[0].title == "Software Engineer"
     assert experience.entries[0].bullets
-    assert "Summary" in result.content
     # Entry content is flattened into the stored plain-text content too.
+    assert "Summary" in result.content
     assert "Software Engineer" in result.content
-    # The template placeholders were substituted before hitting the client.
-    assert ai.last_prompt is not None
-    assert "Jane Doe, Python engineer" in ai.last_prompt
-    assert "Seeking a Python engineer" in ai.last_prompt
-    assert "{{CV}}" not in ai.last_prompt
+    # CV + JD were substituted into the prose sub-call's prompt.
+    prose_prompt = ai.prompts["prose"]
+    assert "Jane Doe, Python engineer" in prose_prompt
+    assert "Seeking a Python engineer" in prose_prompt
+    assert "{{CV}}" not in prose_prompt
+
+
+async def test_sections_are_ordered_canonically() -> None:
+    # experience call returns education before experience, and a fictional extra
+    # section — assembly must still order summary, skills, experience, education,
+    # with unknown ids appended.
+    experience_response = json.dumps(
+        {
+            "sections": [
+                {
+                    "id": "education",
+                    "heading": "Education",
+                    "changed": False,
+                    "entries": [{"title": "BSc CS", "organization": "Uni"}],
+                    "explanation": None,
+                },
+                {
+                    "id": "experience",
+                    "heading": "Experience",
+                    "changed": False,
+                    "entries": [{"title": "Engineer"}],
+                    "explanation": None,
+                },
+                {
+                    "id": "projects",
+                    "heading": "Projects",
+                    "changed": False,
+                    "entries": [{"title": "Side project"}],
+                    "explanation": None,
+                },
+            ]
+        }
+    )
+    ai = RoutingFakeAIClient(experience=experience_response)
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    result = await service.tailor(user_id="user-1", job_description="JD")
+
+    assert [s.id for s in result.sections] == [
+        "summary",
+        "skills",
+        "experience",
+        "education",
+        "projects",
+    ]
 
 
 async def test_tailor_without_base_resume_raises_not_found() -> None:
@@ -121,10 +186,9 @@ async def test_empty_job_description_raises() -> None:
 
 
 async def test_ai_client_failure_raises_ai_generation_error() -> None:
-    """A vendor SDK failure (auth, rate limit, network, outage — modeled here as
-    a generic RuntimeError since the service must not depend on any specific
-    provider's exception types) surfaces as a clean, retryable AIGenerationError
-    instead of an unhandled exception."""
+    """A vendor SDK failure (auth, rate limit, network, outage — modeled as a
+    generic RuntimeError since the service must not depend on any provider's
+    exception types) surfaces as a clean, retryable AIGenerationError."""
     ai = FakeAIClient(error=RuntimeError("429 RESOURCE_EXHAUSTED"))
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
@@ -142,47 +206,33 @@ async def test_malformed_json_raises_invalid_ai_response() -> None:
         await service.tailor(user_id="user-1", job_description="JD")
 
 
-class _SequenceAIClient(AIClient):
-    """Returns queued responses in order, counting calls — models a provider
-    whose first structured output is malformed and whose next one is valid."""
-
-    def __init__(self, responses: list[str]) -> None:
-        self._responses = responses
-        self.calls = 0
-
-    async def generate(self, *, system: str, prompt: str) -> str:
-        response = self._responses[self.calls]
-        self.calls += 1
-        return response
-
-
-async def test_retries_once_on_malformed_output_then_succeeds() -> None:
-    # First response is invalid JSON (transient small-model glitch), second is
-    # valid — tailor() should recover rather than surface an error.
-    ai = _SequenceAIClient(["null on a field, not json", DEFAULT_STRUCTURED_AI_RESPONSE])
-    service, cv_repository, _, _ = _make_service()
-    service._ai_client = ai  # type: ignore[assignment]
+async def test_retries_once_on_malformed_sub_call_then_succeeds() -> None:
+    # The prose sub-call is malformed on its first attempt, valid on the second —
+    # tailor() should recover rather than surface an error.
+    ai = RoutingFakeAIClient(prose=["null, not json", DEFAULT_PROSE_RESPONSE])
+    service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
     result = await service.tailor(user_id="user-1", job_description="JD")
 
-    assert result.sections  # a valid tailored CV came back
-    assert ai.calls == 2  # exactly one retry
+    assert result.sections
+    assert ai.calls["prose"] == 2  # exactly one retry on the prose call
+    assert ai.calls["contact"] == 1  # other calls succeeded first try
+    assert ai.calls["experience"] == 1
 
 
-async def test_gives_up_after_max_attempts_on_persistent_malformed_output() -> None:
-    ai = _SequenceAIClient(["bad one", "bad two", "bad three", "bad four"])
-    service, cv_repository, _, _ = _make_service()
-    service._ai_client = ai  # type: ignore[assignment]
+async def test_gives_up_after_max_attempts_on_persistent_malformed_sub_call() -> None:
+    ai = RoutingFakeAIClient(experience=["bad one", "bad two", "bad three", "bad four"])
+    service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
     with pytest.raises(InvalidAIResponseError):
         await service.tailor(user_id="user-1", job_description="JD")
-    assert ai.calls == 3  # bounded to _MAX_GENERATION_ATTEMPTS — no infinite retry
+    assert ai.calls["experience"] == 3  # bounded — no infinite retry
 
 
-async def test_missing_sections_key_raises_invalid_ai_response() -> None:
-    ai = FakeAIClient(response=json.dumps({"not_sections": []}))
+async def test_prose_call_missing_sections_key_raises() -> None:
+    ai = RoutingFakeAIClient(prose=json.dumps({"not_sections": []}))
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
@@ -190,8 +240,8 @@ async def test_missing_sections_key_raises_invalid_ai_response() -> None:
         await service.tailor(user_id="user-1", job_description="JD")
 
 
-async def test_empty_sections_list_raises_invalid_ai_response() -> None:
-    ai = FakeAIClient(response=json.dumps({"sections": []}))
+async def test_prose_call_empty_sections_list_raises() -> None:
+    ai = RoutingFakeAIClient(prose=json.dumps({"sections": []}))
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
@@ -199,11 +249,50 @@ async def test_empty_sections_list_raises_invalid_ai_response() -> None:
         await service.tailor(user_id="user-1", job_description="JD")
 
 
-async def test_changed_section_without_explanation_raises_invalid_ai_response() -> None:
-    ai = FakeAIClient(
-        response=json.dumps(
+async def test_prose_section_missing_body_raises() -> None:
+    ai = RoutingFakeAIClient(
+        prose=json.dumps(
             {
-                "contact": {"name": "Jane Doe"},
+                "sections": [
+                    {"id": "summary", "heading": "Summary", "changed": False}
+                ]
+            }
+        )
+    )
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    with pytest.raises(InvalidAIResponseError):
+        await service.tailor(user_id="user-1", job_description="JD")
+
+
+async def test_experience_section_empty_entries_raises() -> None:
+    ai = RoutingFakeAIClient(
+        experience=json.dumps(
+            {
+                "sections": [
+                    {
+                        "id": "experience",
+                        "heading": "Experience",
+                        "changed": False,
+                        "entries": [],
+                        "explanation": None,
+                    }
+                ]
+            }
+        )
+    )
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    with pytest.raises(InvalidAIResponseError):
+        await service.tailor(user_id="user-1", job_description="JD")
+
+
+async def test_changed_section_without_explanation_raises() -> None:
+    ai = RoutingFakeAIClient(
+        prose=json.dumps(
+            {
                 "sections": [
                     {
                         "id": "summary",
@@ -212,7 +301,7 @@ async def test_changed_section_without_explanation_raises_invalid_ai_response() 
                         "changed": True,
                         "explanation": None,
                     }
-                ],
+                ]
             }
         )
     )
@@ -233,8 +322,8 @@ async def test_empty_refinement_instructions_raises() -> None:
         )
 
 
-async def test_refinement_includes_previous_content_and_instructions_in_prompt() -> None:
-    ai = FakeAIClient(response=DEFAULT_STRUCTURED_AI_RESPONSE)
+async def test_refinement_threads_previous_content_into_prose_and_experience() -> None:
+    ai = RoutingFakeAIClient()
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
 
@@ -249,9 +338,12 @@ async def test_refinement_includes_previous_content_and_instructions_in_prompt()
 
     assert refined.previous_tailored_cv_id == first.id
     assert refined.refinement_instructions == "Keep it to one page."
-    assert ai.last_prompt is not None
-    assert "Keep it to one page." in ai.last_prompt
-    assert first.content in ai.last_prompt
+    # The prior content and the instruction reach both tailoring sub-calls...
+    for task in ("prose", "experience"):
+        assert "Keep it to one page." in ai.prompts[task]
+        assert first.content in ai.prompts[task]
+    # ...but not the contact call, which is pure extraction (CV only).
+    assert "Keep it to one page." not in ai.prompts["contact"]
 
 
 async def test_refinement_with_unknown_previous_id_raises_not_found() -> None:
@@ -305,31 +397,6 @@ async def test_attach_to_unowned_application_raises_not_found() -> None:
 
     with pytest.raises(NotFoundError):
         await service.attach("user-1", tailored.id, "does-not-exist")
-
-
-async def test_section_without_body_or_entries_raises_invalid_ai_response() -> None:
-    ai = FakeAIClient(
-        response=json.dumps(
-            {
-                "contact": {"name": "Jane Doe"},
-                "sections": [
-                    {
-                        "id": "summary",
-                        "heading": "Summary",
-                        "body": None,
-                        "entries": [],
-                        "changed": False,
-                        "explanation": None,
-                    }
-                ],
-            }
-        )
-    )
-    service, cv_repository, _, _ = _make_service(ai)
-    await _seed_base_resume(cv_repository, "user-1")
-
-    with pytest.raises(InvalidAIResponseError):
-        await service.tailor(user_id="user-1", job_description="JD")
 
 
 async def test_render_with_contact_and_entries_produces_bytes() -> None:

@@ -1,11 +1,22 @@
-"""Business logic for AI-powered, structured CV tailoring."""
+"""Business logic for AI-powered, structured CV tailoring.
+
+The tailoring is decomposed into three focused AI calls, each producing one
+unambiguous JSON shape: the contact header, the prose sections (summary/skills),
+and the structured experience/education entries. Splitting by shape removes the
+body-vs-entries ambiguity a single combined call created — smaller models were
+conflating the two (e.g. emitting skills as ``entries``). The three calls are
+independent and run concurrently; the service assembles and orders the result
+into a single ``TailoredCV`` (output shape unchanged for the rest of the app).
+"""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, TypeVar
 from uuid import uuid4
 
 import anyio
@@ -46,7 +57,7 @@ _SYSTEM_PROMPT = (
     "always respond with the exact JSON shape requested, nothing else."
 )
 
-# Placeholders substituted into the versioned prompt template.
+# Placeholders substituted into the versioned prompt templates.
 _CV_PLACEHOLDER = "{{CV}}"
 _JD_PLACEHOLDER = "{{JOB_DESCRIPTION}}"
 _PREVIOUS_PLACEHOLDER = "{{PREVIOUS_TAILORED_CV}}"
@@ -55,12 +66,27 @@ _REFINEMENT_PLACEHOLDER = "{{REFINEMENT_INSTRUCTIONS}}"
 _NONE_PLACEHOLDER_TEXT = "(none)"
 
 # Total attempts to get valid structured output before giving up. Smaller models
-# glitch on a required field ~10% of the time (measured, qwen2.5:7b); at 3
-# attempts the compounded failure rate is ~0.1%, and the extra calls are only
-# ever paid on the rare failure path.
+# glitch on a required field ~10% of the time; at 3 attempts the compounded
+# failure rate is ~0.1%, and the extra calls are only paid on the rare failure
+# path. Applied per sub-call.
 _MAX_GENERATION_ATTEMPTS = 3
 
+# Canonical section order for assembly, regardless of which call produced each.
+_SECTION_ORDER = {"summary": 0, "skills": 1, "experience": 2, "education": 3}
+
 _logger = logging.getLogger(__name__)
+
+_ModelT = TypeVar("_ModelT", bound=BaseModel)
+
+
+@dataclass(frozen=True)
+class TailoringPrompts:
+    """The three versioned prompt templates the tailoring pipeline uses, loaded
+    at the composition root and injected so this class knows no filesystem."""
+
+    contact: str
+    prose: str
+    experience: str
 
 
 class _ContactLinkModel(BaseModel):
@@ -80,6 +106,12 @@ class _ContactModel(BaseModel):
     links: list[_ContactLinkModel] = Field(default_factory=list)
 
 
+class _ContactResult(BaseModel):
+    """Output of the contact-extraction call."""
+
+    contact: _ContactModel
+
+
 class _EntryModel(BaseModel):
     """A structured item within a section (a role, degree, etc.)."""
 
@@ -90,66 +122,82 @@ class _EntryModel(BaseModel):
     bullets: list[str] = Field(default_factory=list)
 
 
-class _SectionModel(BaseModel):
-    """Validates a single section of the AI's structured JSON response.
+def _require_changed_have_explanation(sections: list[_HasChangeMeta]) -> None:
+    for section in sections:
+        if section.changed and not (section.explanation or "").strip():
+            raise ValueError(
+                f"section '{section.id}' is changed but has no explanation"
+            )
 
-    A section renders from either ``body`` (prose) or ``entries`` (structured);
-    at least one must be present and non-empty.
-    """
+
+class _HasChangeMeta(BaseModel):
+    """Fields shared by both section shapes (used by the explanation check)."""
 
     id: str
     heading: str
     changed: bool
-    body: str | None = None
-    entries: list[_EntryModel] = Field(default_factory=list)
     explanation: str | None = None
 
+
+class _ProseSectionModel(_HasChangeMeta):
+    """A prose section (summary/skills): content is a single ``body`` string.
+
+    There is deliberately no ``entries`` field — this call cannot produce
+    structured entries, which is what removes the body-vs-entries ambiguity.
+    """
+
+    body: str = Field(min_length=1)
+
+
+class _EntrySectionModel(_HasChangeMeta):
+    """A structured section (experience/education): content is ``entries``.
+
+    There is deliberately no ``body`` field on this shape.
+    """
+
+    entries: list[_EntryModel] = Field(min_length=1)
+
+
+class _ProseSectionsResult(BaseModel):
+    """Output of the prose-sections call."""
+
+    sections: list[_ProseSectionModel] = Field(min_length=1)
+
     @model_validator(mode="after")
-    def _requires_body_or_entries(self) -> _SectionModel:
-        if not (self.body or "").strip() and not self.entries:
-            raise ValueError(
-                f"section '{self.id}' has neither body text nor entries"
-            )
+    def _changed_sections_require_explanation(self) -> _ProseSectionsResult:
+        _require_changed_have_explanation(list(self.sections))
         return self
 
 
-class _StructuredOutputModel(BaseModel):
-    """Validates the AI's full structured JSON response: a contact header plus a
-    non-empty sections list; every changed section has a non-null explanation."""
+class _EntrySectionsResult(BaseModel):
+    """Output of the experience/education call."""
 
-    contact: _ContactModel
-    sections: list[_SectionModel] = Field(min_length=1)
+    sections: list[_EntrySectionModel] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _changed_sections_require_explanation(self) -> _StructuredOutputModel:
-        for section in self.sections:
-            if section.changed and not (section.explanation or "").strip():
-                raise ValueError(
-                    f"section '{section.id}' is changed but has no explanation"
-                )
+    def _changed_sections_require_explanation(self) -> _EntrySectionsResult:
+        _require_changed_have_explanation(list(self.sections))
         return self
 
 
 class CVTailoringService:
-    """Turns a saved base CV plus a job description into a tailored CV via the
-    AIClient, persisting the structured result.
+    """Turns a saved base CV plus a job description into a tailored CV via three
+    focused AIClient calls, persisting the assembled structured result.
 
-    The prompt template is injected (loaded from a versioned file at the
-    composition root), so this class has no knowledge of the filesystem or vendor.
-    Refinement (research.md #6) reuses this same operation: it's the same
-    generation + structured-output validation, with extra prior-content context.
+    Refinement reuses the same pipeline: the prior tailored content and the
+    instructions are threaded into the prose and experience prompts.
     """
 
     def __init__(
         self,
         ai_client: AIClient,
-        prompt_template: str,
+        prompts: TailoringPrompts,
         cv_repository: CVRepository,
         tailored_repository: TailoredCVRepository,
         application_repository: ApplicationRepository,
     ) -> None:
         self._ai_client = ai_client
-        self._prompt_template = prompt_template
+        self._prompts = prompts
         self._cv_repository = cv_repository
         self._tailored_repository = tailored_repository
         self._application_repository = application_repository
@@ -180,13 +228,36 @@ class CVTailoringService:
             if previous is None:
                 raise NotFoundError(f"Tailored CV {previous_tailored_cv_id} not found")
 
-        prompt = self._build_prompt(
-            cv_text=base_resume.content or "",
+        cv_text = base_resume.content or ""
+        contact_prompt = self._prompts.contact.replace(_CV_PLACEHOLDER, cv_text)
+        prose_prompt = self._build_prompt(
+            self._prompts.prose,
+            cv_text=cv_text,
             job_description=jd.text,
             previous=previous,
             refinement_instructions=refinement_instructions,
         )
-        contact, sections = await self._generate_structured(prompt)
+        experience_prompt = self._build_prompt(
+            self._prompts.experience,
+            cv_text=cv_text,
+            job_description=jd.text,
+            previous=previous,
+            refinement_instructions=refinement_instructions,
+        )
+
+        # The three calls are independent; run them concurrently. If any fails
+        # after its retries, gather cancels the rest and propagates that error
+        # (mapped to 422/502 at the API boundary), same as before.
+        contact_result, prose_result, experience_result = await asyncio.gather(
+            self._generate_json(contact_prompt, _ContactResult, "contact"),
+            self._generate_json(prose_prompt, _ProseSectionsResult, "prose"),
+            self._generate_json(
+                experience_prompt, _EntrySectionsResult, "experience"
+            ),
+        )
+
+        contact = self._to_contact(contact_result.contact)
+        sections = self._assemble_sections(prose_result, experience_result)
         content = self._render_plain_text(sections)
 
         tailored = TailoredCV(
@@ -246,8 +317,9 @@ class CVTailoringService:
             raise DomainError(f"Unsupported download format: {format!r}")
         return data, content_type, f"tailored-cv.{fmt}"
 
+    @staticmethod
     def _build_prompt(
-        self,
+        template: str,
         *,
         cv_text: str,
         job_description: str,
@@ -263,24 +335,21 @@ class CVTailoringService:
             else _NONE_PLACEHOLDER_TEXT
         )
         return (
-            self._prompt_template.replace(_CV_PLACEHOLDER, cv_text)
+            template.replace(_CV_PLACEHOLDER, cv_text)
             .replace(_JD_PLACEHOLDER, job_description)
             .replace(_PREVIOUS_PLACEHOLDER, previous_text)
             .replace(_REFINEMENT_PLACEHOLDER, refinement_text)
         )
 
-    async def _generate_structured(
-        self, prompt: str
-    ) -> tuple[TailoredCVContact, list[TailoredCVSection]]:
-        """Generate + validate the structured output, retrying once on malformed
-        output.
+    async def _generate_json(
+        self, prompt: str, validator: type[_ModelT], label: str
+    ) -> _ModelT:
+        """Generate + validate one sub-call's JSON, retrying on malformed output.
 
-        Smaller/open models occasionally emit a structurally-invalid object (e.g.
-        a null on a required field) — a transient, non-deterministic glitch, not
-        a persistent failure. One retry with the same prompt turns a ~10% failure
-        rate into ~1% and is provider-agnostic (all `AIClient`s benefit). A hard
-        provider failure (auth/rate-limit/outage) is not a parse error and is not
-        retried here — it surfaces immediately as ``AIGenerationError``.
+        A malformed response (bad JSON or failed validation) is a transient
+        small-model glitch and is retried up to ``_MAX_GENERATION_ATTEMPTS``. A
+        hard provider failure (auth/rate-limit/outage) is not retried here — it
+        surfaces immediately as ``AIGenerationError``.
         """
 
         last_error: InvalidAIResponseError | None = None
@@ -290,81 +359,96 @@ class CVTailoringService:
                     system=_SYSTEM_PROMPT, prompt=prompt
                 )
             except Exception as exc:
-                # Deliberately broad: the AIClient abstraction may be backed by any
-                # vendor SDK, each with its own exception hierarchy (auth errors,
-                # rate limits, network failures, outages). The service must not
-                # import or special-case any of them (Principle III/V) — it only
-                # needs to guarantee the caller sees a clean, retryable error
-                # instead of an unhandled 500 (spec.md Edge Cases: generation
-                # failure must be retryable without losing the job description or
-                # base resume — the frontend keeps both on error).
-                _logger.exception("AI generation failed")
+                # Deliberately broad: the AIClient may be backed by any vendor
+                # SDK with its own exception hierarchy. The service must not
+                # special-case any of them (Principle III/V) — it only guarantees
+                # the caller sees a clean, retryable error rather than a 500.
+                _logger.exception("AI generation failed (%s)", label)
                 raise AIGenerationError(
                     "AI tailoring is temporarily unavailable. Please try again."
                 ) from exc
 
             try:
-                return self._parse_structured(raw_response)
+                return self._parse_json(raw_response, validator)
             except InvalidAIResponseError as exc:
                 last_error = exc
                 _logger.warning(
-                    "AI structured-output validation failed (attempt %d/%d): %s",
+                    "AI structured-output validation failed for %s "
+                    "(attempt %d/%d): %s",
+                    label,
                     attempt,
                     _MAX_GENERATION_ATTEMPTS,
                     exc,
                 )
 
-        # Every attempt produced malformed output — surface the last failure.
         assert last_error is not None  # loop runs at least once
         raise last_error
 
     @staticmethod
-    def _parse_structured(
-        raw_response: str,
-    ) -> tuple[TailoredCVContact, list[TailoredCVSection]]:
+    def _parse_json(raw_response: str, validator: type[_ModelT]) -> _ModelT:
         try:
             data = json.loads(raw_response)
         except json.JSONDecodeError as exc:
             raise InvalidAIResponseError("AI response was not valid JSON") from exc
-
         try:
-            parsed = _StructuredOutputModel.model_validate(data)
+            return validator.model_validate(data)
         except ValidationError as exc:
             raise InvalidAIResponseError(
                 f"AI response failed structured-output validation: {exc}"
             ) from exc
 
-        contact = TailoredCVContact(
-            name=parsed.contact.name,
-            email=parsed.contact.email,
-            phone=parsed.contact.phone,
-            location=parsed.contact.location,
+    @staticmethod
+    def _to_contact(contact: _ContactModel) -> TailoredCVContact:
+        return TailoredCVContact(
+            name=contact.name,
+            email=contact.email,
+            phone=contact.phone,
+            location=contact.location,
             links=[
-                ContactLink(label=link.label, url=link.url)
-                for link in parsed.contact.links
+                ContactLink(label=link.label, url=link.url) for link in contact.links
             ],
         )
-        sections = [
-            TailoredCVSection(
-                id=section.id,
-                heading=section.heading,
-                changed=section.changed,
-                body=section.body,
-                entries=[
-                    TailoredCVEntry(
-                        title=entry.title,
-                        organization=entry.organization,
-                        date_range=entry.date_range,
-                        context=entry.context,
-                        bullets=list(entry.bullets),
-                    )
-                    for entry in section.entries
-                ],
-                explanation=section.explanation,
+
+    @staticmethod
+    def _assemble_sections(
+        prose: _ProseSectionsResult, experience: _EntrySectionsResult
+    ) -> list[TailoredCVSection]:
+        """Merge the two calls' sections into one canonically-ordered list."""
+
+        sections: list[TailoredCVSection] = []
+        for prose_section in prose.sections:
+            sections.append(
+                TailoredCVSection(
+                    id=prose_section.id,
+                    heading=prose_section.heading,
+                    changed=prose_section.changed,
+                    body=prose_section.body,
+                    entries=[],
+                    explanation=prose_section.explanation,
+                )
             )
-            for section in parsed.sections
-        ]
-        return contact, sections
+        for entry_section in experience.sections:
+            sections.append(
+                TailoredCVSection(
+                    id=entry_section.id,
+                    heading=entry_section.heading,
+                    changed=entry_section.changed,
+                    body=None,
+                    entries=[
+                        TailoredCVEntry(
+                            title=entry.title,
+                            organization=entry.organization,
+                            date_range=entry.date_range,
+                            context=entry.context,
+                            bullets=list(entry.bullets),
+                        )
+                        for entry in entry_section.entries
+                    ],
+                    explanation=entry_section.explanation,
+                )
+            )
+        sections.sort(key=lambda s: _SECTION_ORDER.get(s.id, len(_SECTION_ORDER)))
+        return sections
 
     @staticmethod
     def _render_plain_text(sections: list[TailoredCVSection]) -> str:
@@ -381,7 +465,9 @@ class CVTailoringService:
                     part for part in (entry.title, entry.organization) if part
                 )
                 if entry.date_range:
-                    header = f"{header} ({entry.date_range})" if header else entry.date_range
+                    header = (
+                        f"{header} ({entry.date_range})" if header else entry.date_range
+                    )
                 if header:
                     lines.append(header)
                 lines.extend(f"- {bullet}" for bullet in entry.bullets)

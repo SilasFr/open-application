@@ -42,7 +42,7 @@ from app.infrastructure.supabase.task_repository import SupabaseTaskRepository
 from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
 from app.services.cv_service import CVService
-from app.services.cv_tailoring_service import CVTailoringService
+from app.services.cv_tailoring_service import CVTailoringService, TailoringPrompts
 from app.services.note_service import NoteService
 from app.services.task_service import TaskService
 
@@ -182,8 +182,13 @@ CVServiceDep = Annotated[CVService, Depends(get_cv_service)]
 
 
 @lru_cache
-def _cv_tailoring_structured_prompt() -> str:
-    return load_prompt("cv_tailoring_structured")
+def _tailoring_prompts() -> TailoringPrompts:
+    # One versioned template per focused sub-call (contact / prose / experience).
+    return TailoringPrompts(
+        contact=load_prompt("cv_contact"),
+        prose=load_prompt("cv_prose_sections"),
+        experience=load_prompt("cv_experience"),
+    )
 
 
 def get_cv_tailoring_service(
@@ -194,7 +199,7 @@ def get_cv_tailoring_service(
 ) -> CVTailoringService:
     return CVTailoringService(
         ai_client,
-        _cv_tailoring_structured_prompt(),
+        _tailoring_prompts(),
         cv_repository,
         tailored_cv_repository,
         application_repository,
