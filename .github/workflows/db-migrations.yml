@@ -1,0 +1,79 @@
+name: Database Migrations
+
+# Applies Supabase SQL migrations to the hosted project — no local `psql` or
+# dashboard SQL required. `supabase db push` only runs migrations not yet
+# recorded in the remote `supabase_migrations.schema_migrations` table, so it is
+# safe to re-run and only ever applies what is pending.
+#
+# One-time setup (see supabase/README.md):
+#   1. Add repo secrets SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD.
+#   2. Run this workflow once with mode=repair-baseline to mark the migrations
+#      that were applied by hand (before this pipeline existed) as already-applied
+#      WITHOUT re-running their SQL. Skipping this makes the first push fail,
+#      since the historical migrations are not idempotent.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+      - ".github/workflows/db-migrations.yml"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "push = apply pending migrations; repair-baseline = mark pre-existing migrations as applied (one-time)"
+        type: choice
+        options:
+          - push
+          - repair-baseline
+        default: push
+
+# Never let two migration runs race against the same database.
+concurrency:
+  group: db-migrations
+  cancel-in-progress: false
+
+env:
+  # Project ref is not a secret (it is part of the public project URL).
+  SUPABASE_PROJECT_REF: bezcaappcvbtreqdcpov
+  # Migrations applied by hand before this pipeline existed. `repair-baseline`
+  # records them as applied so `db push` skips them. Append future hand-applied
+  # versions here only if you ever apply one out-of-band (you shouldn't).
+  BASELINE_VERSIONS: "20260701170000 20260701180000 20260706120000"
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fail early if secrets are missing
+        run: |
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ] || [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN and SUPABASE_DB_PASSWORD must be set as repo secrets. See supabase/README.md."
+            exit 1
+          fi
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Repair baseline (mark pre-existing migrations as applied)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-baseline' }}
+        run: |
+          echo "Marking baseline versions as applied: $BASELINE_VERSIONS"
+          supabase migration repair --status applied $BASELINE_VERSIONS
+
+      - name: Show migration status
+        run: supabase migration list
+
+      - name: Push pending migrations
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.mode == 'repair-baseline') }}
+        run: supabase db push
