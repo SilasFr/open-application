@@ -11,7 +11,6 @@ into a single ``TailoredCV`` (output shape unchanged for the rest of the app).
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -245,15 +244,21 @@ class CVTailoringService:
             refinement_instructions=refinement_instructions,
         )
 
-        # The three calls are independent; run them concurrently. If any fails
-        # after its retries, gather cancels the rest and propagates that error
-        # (mapped to 422/502 at the API boundary), same as before.
-        contact_result, prose_result, experience_result = await asyncio.gather(
-            self._generate_json(contact_prompt, _ContactResult, "contact"),
-            self._generate_json(prose_prompt, _ProseSectionsResult, "prose"),
-            self._generate_json(
-                experience_prompt, _EntrySectionsResult, "experience"
-            ),
+        # The three calls are independent, but we run them sequentially rather
+        # than concurrently: free-tier hosted providers (e.g. Groq) enforce a
+        # tokens-per-minute limit, and firing all three at once bursts past it
+        # (HTTP 429). Sequential calls spread the load and stay within the limit;
+        # each provider is fast enough that total latency is still a few seconds.
+        # The first failure (after its retries) short-circuits and propagates,
+        # mapped to 422/502 at the API boundary.
+        contact_result = await self._generate_json(
+            contact_prompt, _ContactResult, "contact"
+        )
+        prose_result = await self._generate_json(
+            prose_prompt, _ProseSectionsResult, "prose"
+        )
+        experience_result = await self._generate_json(
+            experience_prompt, _EntrySectionsResult, "experience"
         )
 
         contact = self._to_contact(contact_result.contact)
