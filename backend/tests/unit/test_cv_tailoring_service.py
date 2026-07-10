@@ -124,6 +124,33 @@ async def test_tailor_assembles_contact_prose_and_entries() -> None:
     assert "{{CV}}" not in prose_prompt
 
 
+async def test_contact_links_without_url_are_dropped() -> None:
+    # PDF text extraction often yields a link's label but not its href; the model
+    # returns url: null. Such links are dropped, not fatal.
+    contact_response = json.dumps(
+        {
+            "contact": {
+                "name": "Jane Doe",
+                "email": None,
+                "phone": None,
+                "location": None,
+                "links": [
+                    {"label": "LinkedIn", "url": None},
+                    {"label": "GitHub", "url": "https://github.com/janedoe"},
+                ],
+            }
+        }
+    )
+    ai = RoutingFakeAIClient(contact=contact_response)
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    result = await service.tailor(user_id="user-1", job_description="JD")
+
+    assert result.contact is not None
+    assert [link.label for link in result.contact.links] == ["GitHub"]
+
+
 async def test_sections_are_ordered_canonically() -> None:
     # experience call returns education before experience, and a fictional extra
     # section — assembly must still order summary, skills, experience, education,

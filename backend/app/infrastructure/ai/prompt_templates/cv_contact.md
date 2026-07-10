@@ -7,7 +7,9 @@ Rules:
 - `email`, `phone`, and `location` are strings copied from the CV, or null if the
   CV does not contain them. Never invent contact details.
 - `links` is a possibly-empty list of labelled URLs found in the CV (e.g.
-  LinkedIn, GitHub, portfolio), each `{ "label", "url" }`.
+  LinkedIn, GitHub, portfolio), each `{ "label", "url" }`. Only include a link
+  when its actual URL appears in the CV text; if you can see a label but no URL,
+  omit that link entirely rather than guessing or emitting a null URL.
 
 ## Original CV
 

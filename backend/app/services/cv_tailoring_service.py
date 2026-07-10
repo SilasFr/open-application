@@ -89,10 +89,16 @@ class TailoringPrompts:
 
 
 class _ContactLinkModel(BaseModel):
-    """A labelled URL in the CV header."""
+    """A labelled URL in the CV header.
+
+    ``url`` is nullable: text extraction from a PDF often yields a link's visible
+    label ("LinkedIn Profile") without its underlying href, and the model — told
+    not to invent details — returns a null URL. Such links are dropped during
+    assembly rather than failing the whole tailor.
+    """
 
     label: str
-    url: str
+    url: str | None = None
 
 
 class _ContactModel(BaseModel):
@@ -409,8 +415,12 @@ class CVTailoringService:
             email=contact.email,
             phone=contact.phone,
             location=contact.location,
+            # Drop links whose URL wasn't present in the CV — a label with no
+            # href isn't a usable link.
             links=[
-                ContactLink(label=link.label, url=link.url) for link in contact.links
+                ContactLink(label=link.label, url=link.url)
+                for link in contact.links
+                if link.url and link.url.strip()
             ],
         )
 
