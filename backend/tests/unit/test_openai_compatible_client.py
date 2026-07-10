@@ -84,7 +84,7 @@ async def test_generate_raises_on_http_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        return httpx.Response(500, json={"error": "boom"})
+        return httpx.Response(429, json={"error": {"message": "rate limit reached"}})
 
     transport = httpx.MockTransport(handler)
     monkeypatch.setattr(httpx, "AsyncClient", _async_client_factory(transport))
@@ -92,8 +92,10 @@ async def test_generate_raises_on_http_error(
     client = OpenAICompatibleClient(
         base_url="http://localhost:11434/v1", api_key="", model="m", max_tokens=10
     )
-    # Surfaced to the caller (the tailoring service maps it to AIGenerationError).
-    with pytest.raises(httpx.HTTPStatusError):
+    # Surfaced to the caller (the tailoring service maps it to AIGenerationError),
+    # with the provider's error body included so rate-limit/model errors are
+    # diagnosable from logs.
+    with pytest.raises(RuntimeError, match="HTTP 429"):
         await client.generate(system="s", prompt="p")
 
 

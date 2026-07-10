@@ -64,7 +64,14 @@ class OpenAICompatibleClient(AIClient):
                 headers=headers,
                 json=payload,
             )
-            response.raise_for_status()
+            if response.status_code >= 400:
+                # Surface the provider's error body (rate-limit details, model
+                # errors, auth) — httpx's default HTTPStatusError message drops
+                # it, which makes 429s/400s undiagnosable from logs alone.
+                raise RuntimeError(
+                    f"AI provider returned HTTP {response.status_code}: "
+                    f"{response.text[:500]}"
+                )
             data = response.json()
 
         # Let a malformed response raise (KeyError/IndexError/TypeError); the
