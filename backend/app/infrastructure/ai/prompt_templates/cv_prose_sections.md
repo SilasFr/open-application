@@ -18,12 +18,21 @@ Produce these sections, in this order, using only what the CV supports:
    whole section otherwise.
 
 Rules:
-- Use ONLY information present in the CV. Never invent skills, metrics, or claims.
+- Use ONLY information present in the CV. Never invent skills, metrics, or claims
+  — including years of experience, team sizes, revenue, or performance numbers.
+  If the CV states a figure (e.g. "5+ years"), copy it exactly; never round it up
+  or embellish it. If no number supports a claim, state it qualitatively instead
+  of inventing one (e.g. "Experience building..." instead of a fabricated "X
+  years").
 - Every bullet is specific and non-empty: action + scale + outcome, no waffle.
-  Prefer the X-Y-Z form ("Accomplished [X] as measured by [Y] by doing [Z]").
+  Prefer the X-Y-Z form ("Accomplished [X] as measured by [Y] by doing [Z]") —
+  but only when the CV actually supports X, Y, and Z.
 - Mirror important keywords from the job description where they truthfully apply.
 - Each section has a short lowercase `id` (exactly "summary", "impact", "skills",
   "languages"), a `heading`, and a non-empty `bullets` list.
+- The JSON example below shows OUTPUT SHAPE ONLY. Its companies, numbers, and
+  wording are illustrative placeholders — never copy them into your answer.
+  Every fact in your output must trace back to the CV above.
 
 ## Original CV
 
@@ -56,24 +65,24 @@ fences, no preamble, no commentary, no trailing text:
       "id": "summary",
       "heading": "Career Summary",
       "bullets": [
-        "8+ years building high-throughput backend systems in Python and Go.",
-        "Led teams of 4–10 engineers across two orgs; owned platform reliability."
+        "<years-from-CV> of experience in <domain from CV>.",
+        "<leadership/management scope, only if the CV states it>."
       ]
     },
     {
       "id": "impact",
       "heading": "Impact Summary",
       "bullets": [
-        "Scaled the payments API to 1M requests/day at Foo Inc, cutting p99 latency 40%.",
-        "Drove a migration that reduced cloud spend 25% while doubling throughput."
+        "<best CV-supported achievement, with its actual metric if the CV has one>.",
+        "<second-best CV-supported achievement>."
       ]
     },
     {
       "id": "skills",
       "heading": "Technology & Skills Snapshot",
       "bullets": [
-        "Languages: Python, Go, TypeScript",
-        "Infrastructure: AWS, PostgreSQL, Docker, CI/CD"
+        "<Category from CV>: <items from CV>",
+        "<Another category from CV>: <items from CV>"
       ]
     },
     {

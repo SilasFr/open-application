@@ -11,20 +11,25 @@ Sections (use only what the CV supports):
 
 Rules:
 - Use ONLY information present in the CV. Never invent roles, employers, degrees,
-  dates, or metrics.
+  dates, or metrics — including team sizes, revenue, percentages, or scale
+  figures the CV does not state. Copy any number from the CV exactly, never
+  round or embellish it.
 - Each entry is `{ "title", "organization", "date_range", "context", "bullets" }`:
   - `title` (required) — the role or degree.
   - `organization` — company or school, or null.
   - `date_range` — a human string like "Feb 2026 – May 2026", or null.
   - `context` — a one-line company descriptor (stage, size, domain) when the
-    employer may be unfamiliar to a recruiter, else null.
-  - `bullets` — accomplishment strings. Lead each with a strong verb
-    (Architected, Led, Scaled, Drove, Built 0->1); most bullets carry a metric
-    or concrete scope (team size, users, %, revenue, scale). Prefer the X-Y-Z
-    form. Mirror the job description's exact terminology where it truthfully
-    applies. No waffle ("responsible for", "worked on", "helped with").
+    employer may be unfamiliar to a recruiter and the CV supports it, else null.
+  - `bullets` — accomplishment strings grounded in the CV. Lead each with a
+    strong verb (Architected, Led, Scaled, Drove, Built 0->1). Include a metric
+    or concrete scope ONLY when the CV states one; otherwise describe the
+    action and outcome without inventing a number. No waffle ("responsible
+    for", "worked on", "helped with").
 - Each section has a lowercase `id` (exactly "experience" or "education"), a
   `heading`, and a non-empty `entries` list.
+- The JSON example below shows OUTPUT SHAPE ONLY. Its company, dates, and
+  numbers are illustrative placeholders — never copy them into your answer.
+  Every fact in your output must trace back to the CV above.
 
 ## Original CV
 
@@ -58,13 +63,13 @@ fences, no preamble, no commentary, no trailing text:
       "heading": "Professional Experience",
       "entries": [
         {
-          "title": "Senior Backend Engineer",
-          "organization": "Foo Inc",
-          "date_range": "2020 – 2024",
-          "context": "Series B fintech, 150-person engineering org",
+          "title": "<title from CV>",
+          "organization": "<organization from CV, or null>",
+          "date_range": "<date range from CV, or null>",
+          "context": "<one-line descriptor, only if CV supports it, else null>",
           "bullets": [
-            "Architected the payments platform to 1M requests/day, cutting p99 latency 40%.",
-            "Led a team of 6 engineers, reaching 99.9% uptime under Prime Day peaks."
+            "<CV-grounded accomplishment, with its real metric if the CV has one>",
+            "<second CV-grounded accomplishment>"
           ]
         }
       ]
@@ -74,9 +79,9 @@ fences, no preamble, no commentary, no trailing text:
       "heading": "Education & Certifications",
       "entries": [
         {
-          "title": "BSc Computer Science",
-          "organization": "State University",
-          "date_range": "2014 – 2018",
+          "title": "<degree/certification from CV>",
+          "organization": "<school from CV, or null>",
+          "date_range": "<date range from CV, or null>",
           "context": null,
           "bullets": []
         }
