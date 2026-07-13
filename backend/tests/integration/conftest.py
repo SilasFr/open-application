@@ -40,7 +40,7 @@ from tests.fakes import (
 TEST_PROMPTS = TailoringPrompts(
     contact="Extract the contact header.\nCV:\n{{CV}}",
     prose=(
-        "Tailor the prose sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+        "Produce the bullet sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
         "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
     ),
     experience=(

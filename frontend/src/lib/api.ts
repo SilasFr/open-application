@@ -100,10 +100,8 @@ export interface TailoredCVEntry {
 export interface TailoredCVSection {
   id: string;
   heading: string;
-  changed: boolean;
-  body: string | null;
+  bullets: string[];
   entries: TailoredCVEntry[];
-  explanation: string | null;
 }
 
 export interface TailoredCV {

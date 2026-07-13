@@ -1,28 +1,30 @@
-Tailor the candidate's **Experience and Education** to the target job description
-and return them as structured JSON. Produce ONLY these structured sections here —
-each section is a list of `entries`. Do NOT produce a Summary or Skills section,
-and do NOT use free-form prose; every item is a structured entry.
+Produce the **Experience and Education** sections of a senior-tech resume
+tailored to the target job description, as structured JSON. Each section is a
+list of `entries`. Do NOT produce a Career Summary, Impact, Skills, or Languages
+section here, and do NOT use free-form prose — every item is a structured entry.
+
+Sections (use only what the CV supports):
+- `experience` — heading "Professional Experience". One entry per role, most
+  recent first. 4–6 bullets for recent/relevant roles, 2–3 for older ones.
+- `education` — heading "Education & Certifications". One entry per degree or
+  certification. Bullets may be empty. Include only if the CV has education.
 
 Rules:
-- Use ONLY information present in the original CV. Do not invent roles, employers,
-  degrees, dates, or metrics.
-- Reorder and reword to surface the experience most relevant to the job; mirror
-  important keywords from the job description where they truthfully apply.
-- Produce an `experience` section and, if the CV lists education, an `education`
-  section. Each section has a short, stable, lowercase `id`, a human `heading`,
-  and a non-empty `entries` list (at least one entry).
+- Use ONLY information present in the CV. Never invent roles, employers, degrees,
+  dates, or metrics.
 - Each entry is `{ "title", "organization", "date_range", "context", "bullets" }`:
   - `title` (required) — the role or degree.
   - `organization` — company or school, or null.
   - `date_range` — a human string like "Feb 2026 – May 2026", or null.
-  - `context` — an optional one-line note, or null.
-  - `bullets` — a list of accomplishment strings (may be empty for education).
-- Set `"changed": true` if you altered the section from the original CV (reordered
-  roles, reworded bullets, re-emphasized), or `"changed": false` if carried over
-  unchanged. `changed` must be `true` or `false`, never null.
-- Every section with `"changed": true` MUST include a non-empty, human-readable
-  `"explanation"` of what changed and why (referencing the job description where
-  relevant). Sections with `"changed": false` MUST have `"explanation": null`.
+  - `context` — a one-line company descriptor (stage, size, domain) when the
+    employer may be unfamiliar to a recruiter, else null.
+  - `bullets` — accomplishment strings. Lead each with a strong verb
+    (Architected, Led, Scaled, Drove, Built 0->1); most bullets carry a metric
+    or concrete scope (team size, users, %, revenue, scale). Prefer the X-Y-Z
+    form. Mirror the job description's exact terminology where it truthfully
+    applies. No waffle ("responsible for", "worked on", "helped with").
+- Each section has a lowercase `id` (exactly "experience" or "education"), a
+  `heading`, and a non-empty `entries` list.
 
 ## Original CV
 
@@ -54,25 +56,22 @@ fences, no preamble, no commentary, no trailing text:
     {
       "id": "experience",
       "heading": "Professional Experience",
-      "changed": true,
       "entries": [
         {
           "title": "Senior Backend Engineer",
           "organization": "Foo Inc",
           "date_range": "2020 – 2024",
-          "context": "High-scale fintech APIs",
+          "context": "Series B fintech, 150-person engineering org",
           "bullets": [
-            "Built Python/Go services scaling to 1M requests/day.",
-            "Owned service reliability, reaching 99.9% uptime."
+            "Architected the payments platform to 1M requests/day, cutting p99 latency 40%.",
+            "Led a team of 6 engineers, reaching 99.9% uptime under Prime Day peaks."
           ]
         }
-      ],
-      "explanation": "Led with the most relevant role and emphasized scale metrics the job calls out."
+      ]
     },
     {
       "id": "education",
-      "heading": "Education",
-      "changed": false,
+      "heading": "Education & Certifications",
       "entries": [
         {
           "title": "BSc Computer Science",
@@ -81,8 +80,7 @@ fences, no preamble, no commentary, no trailing text:
           "context": null,
           "bullets": []
         }
-      ],
-      "explanation": null
+      ]
     }
   ]
 }

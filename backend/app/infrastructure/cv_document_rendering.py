@@ -96,6 +96,22 @@ def _esc(text: str) -> str:
     return _xml_escape(text or "")
 
 
+def _context_text(raw: str) -> str:
+    """Normalize an entry's context descriptor to a bare phrase.
+
+    The model sometimes echoes the base resume's "[Context: ...]" literal into
+    the field; strip any surrounding brackets and a leading "Context:" so the
+    renderer can format it consistently as "[Context: ...]".
+    """
+
+    text = raw.strip()
+    while text.startswith("[") and text.endswith("]"):
+        text = text[1:-1].strip()
+    if text.lower().startswith("context:"):
+        text = text[len("context:") :].strip()
+    return text
+
+
 def _contact_line(contact: TailoredCVContact) -> str:
     parts = [contact.email, contact.phone]
     parts += [f'<a href="{_esc(link.url)}">{_esc(link.label)}</a>' for link in contact.links]
@@ -135,16 +151,28 @@ def render_pdf(tailored: TailoredCV) -> bytes:
 def _section_flowables(
     section: TailoredCVSection, styles: dict[str, ParagraphStyle]
 ) -> list[object]:
-    """Heading + underline rule, then the section's prose or entries.
+    """Heading + underline rule, then the section's bullets or entries.
 
     The heading, its rule, and the first content flowable are kept together so a
     heading is never orphaned at the bottom of a page; the rest flows freely.
     """
 
     content: list[object] = []
-    if section.body:
-        for para in section.body.split("\n"):
-            content.append(Paragraph(_esc(para) or "&nbsp;", styles["body"]))
+    if section.bullets:
+        content.append(
+            ListFlowable(
+                [
+                    ListItem(Paragraph(_esc(b), styles["bullet"]), leftIndent=10)
+                    for b in section.bullets
+                ],
+                bulletType="bullet",
+                start="•",
+                leftIndent=12,
+                bulletColor=_MUTED,
+                spaceBefore=2,
+                spaceAfter=4,
+            )
+        )
     for entry in section.entries:
         content.extend(_entry_flowables(entry, styles))
 
@@ -177,7 +205,9 @@ def _entry_flowables(
     ]))
     out: list[object] = [header]
     if entry.context:
-        out.append(Paragraph(f"[{_esc(entry.context)}]", styles["context"]))
+        out.append(
+            Paragraph(f"[Context: {_esc(_context_text(entry.context))}]", styles["context"])
+        )
     if entry.bullets:
         out.append(ListFlowable(
             [ListItem(Paragraph(_esc(b), styles["bullet"]), leftIndent=10)
@@ -212,9 +242,8 @@ def render_docx(tailored: TailoredCV) -> bytes:
 
     for section in tailored.sections:
         document.add_heading(section.heading, level=2)
-        if section.body:
-            for para in section.body.split("\n"):
-                document.add_paragraph(para)
+        for bullet in section.bullets:
+            document.add_paragraph(bullet, style="List Bullet")
         for entry in section.entries:
             head = entry.title
             if entry.organization:
@@ -225,7 +254,9 @@ def render_docx(tailored: TailoredCV) -> bytes:
             p.add_run(head).bold = True
             if entry.context:
                 context_para = document.add_paragraph()
-                context_para.add_run(entry.context).italic = True
+                context_para.add_run(
+                    f"[Context: {_context_text(entry.context)}]"
+                ).italic = True
             for bullet in entry.bullets:
                 document.add_paragraph(bullet, style="List Bullet")
 

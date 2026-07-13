@@ -30,18 +30,14 @@ interface TailorResultProps {
   onStartOver: () => void;
 }
 
-/** Result view for a tailored CV (User Stories 6 & 7): the CV pane with
- * changed-section accents, the reasoning pane with cross-highlighting, and
- * the action bar (download, copy, save-to-application, refine, start over). */
+/** Result view for a tailored CV: the finished resume preview plus the action
+ * bar (download, copy, save-to-application, refine, start over). */
 export default function TailorResult({
   tailored,
   onAttached,
   onRefine,
   onStartOver,
 }: TailorResultProps) {
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
-    null,
-  );
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState<"pdf" | "docx" | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -60,18 +56,12 @@ export default function TailorResult({
   const [showRefineInput, setShowRefineInput] = useState(false);
   const [refineText, setRefineText] = useState("");
 
-  const changedSections = tailored.sections.filter((s) => s.changed);
-
   // Reset local state derived from `tailored` when a new result arrives (e.g.
-  // after a refine), following React's documented pattern for adjusting state
-  // during render rather than in an effect (avoids an extra render + the
-  // set-state-in-effect lint rule for this specific "reset on prop change"
-  // case: https://react.dev/learn/you-might-not-need-an-effect).
+  // after a refine), per React's "adjust state during render" pattern.
   const [prevTailoredId, setPrevTailoredId] = useState(tailored.id);
   if (tailored.id !== prevTailoredId) {
     setPrevTailoredId(tailored.id);
     setAttachedApplicationId(tailored.application_id);
-    setSelectedSectionId(null);
   }
 
   useEffect(() => {
@@ -100,12 +90,6 @@ export default function TailorResult({
       window.removeEventListener("keydown", onKey);
     };
   }, [showSavePopover]);
-
-  function toggleSection(sectionId: string) {
-    setSelectedSectionId((current) =>
-      current === sectionId ? null : sectionId,
-    );
-  }
 
   async function handleCopy() {
     try {
@@ -171,7 +155,7 @@ export default function TailorResult({
     applications?.find((a) => a.id === attachedApplicationId) ?? null;
 
   return (
-    <section className="mx-auto max-w-[80rem]">
+    <section className="mx-auto max-w-[52rem]">
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -289,161 +273,79 @@ export default function TailorResult({
         </div>
       )}
 
-      <p className="mt-4 text-sm text-[color:var(--text-tertiary)]">
-        Highlighted sections were changed — click one (or a card) to see why.
-      </p>
-
-      <div className="mt-3 flex flex-col gap-5 lg:flex-row">
-        <div className="flex-1 rounded-[var(--radius-token-lg)] border border-[var(--border-default)] bg-[var(--surface-card)] px-6 py-7">
-          {tailored.contact && (
-            <div className="mb-5 border-b border-[var(--border-default)] pb-4 text-center">
-              <h2 className="m-0 text-lg font-bold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-primary)]">
-                {tailored.contact.name}
-              </h2>
-              <p className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-[color:var(--text-tertiary)]">
-                {[
-                  tailored.contact.email,
-                  tailored.contact.phone,
-                  ...tailored.contact.links.map((l) => l.label),
-                ]
-                  .filter(Boolean)
-                  .map((part, i, arr) => (
-                    <span key={i}>
-                      {part}
-                      {i < arr.length - 1 && <span className="ml-2">·</span>}
-                    </span>
-                  ))}
-              </p>
-              {tailored.contact.location && (
-                <p className="m-0 text-xs text-[color:var(--text-tertiary)]">
-                  {tailored.contact.location}
-                </p>
-              )}
-            </div>
-          )}
-          {tailored.sections.map((section) => {
-            const isSelected = selectedSectionId === section.id;
-            return (
-              <div
-                key={section.id}
-                role={section.changed ? "button" : undefined}
-                tabIndex={section.changed ? 0 : undefined}
-                aria-pressed={section.changed ? isSelected : undefined}
-                onClick={
-                  section.changed ? () => toggleSection(section.id) : undefined
-                }
-                onKeyDown={
-                  section.changed
-                    ? (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          toggleSection(section.id);
-                        }
-                      }
-                    : undefined
-                }
-                className={`mb-4 rounded-[var(--radius-token-md)] px-3 py-2 transition ${
-                  section.changed
-                    ? "cursor-pointer border-l-2 border-[rgb(163_230_53_/_0.4)]"
-                    : ""
-                } ${
-                  isSelected
-                    ? "border-[rgb(163_230_53_/_0.6)] bg-[rgb(132_204_22_/_0.10)]"
-                    : ""
-                }`}
-              >
-                <h3 className="m-0 text-xs font-semibold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-tertiary)]">
-                  {section.heading}
-                </h3>
-                {section.body && (
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
-                    {section.body}
-                  </p>
-                )}
-                {section.entries.map((entry, i) => (
-                  <div key={i} className="mt-2">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <span className="text-sm font-semibold text-[color:var(--text-primary)]">
-                        {entry.title}
-                        {entry.organization && (
-                          <span className="font-normal text-[color:var(--text-secondary)]">
-                            {" — "}
-                            {entry.organization}
-                          </span>
-                        )}
-                      </span>
-                      {entry.date_range && (
-                        <span className="shrink-0 text-xs text-[color:var(--text-tertiary)]">
-                          {entry.date_range}
-                        </span>
-                      )}
-                    </div>
-                    {entry.context && (
-                      <p className="m-0 text-xs italic text-[color:var(--text-tertiary)]">
-                        {entry.context}
-                      </p>
-                    )}
-                    {entry.bullets.length > 0 && (
-                      <ul className="mt-1 list-disc pl-5 text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
-                        {entry.bullets.map((bullet, j) => (
-                          <li key={j}>{bullet}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="lg:sticky lg:top-6 lg:w-[20rem] lg:shrink-0 lg:self-start">
-          <div className="flex items-center gap-2">
-            <h2 className="m-0 text-sm font-semibold text-[color:var(--text-primary)]">
-              What changed &amp; why
+      <div className="mt-4 rounded-[var(--radius-token-lg)] border border-[var(--border-default)] bg-[var(--surface-card)] px-6 py-7">
+        {tailored.contact && (
+          <div className="mb-5 border-b border-[var(--border-default)] pb-4 text-center">
+            <h2 className="m-0 text-lg font-bold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-primary)]">
+              {tailored.contact.name}
             </h2>
-            <span className="rounded-[var(--radius-token-full)] bg-[var(--badge-count-bg)] px-2 py-0.5 text-xs text-[color:var(--badge-count-text)]">
-              {changedSections.length}
-            </span>
-          </div>
-          <div className="mt-3 flex flex-col gap-3">
-            {changedSections.length === 0 && (
+            <p className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-xs text-[color:var(--text-tertiary)]">
+              {[
+                tailored.contact.email,
+                tailored.contact.phone,
+                ...tailored.contact.links.map((l) => l.label),
+              ]
+                .filter(Boolean)
+                .map((part, i, arr) => (
+                  <span key={i}>
+                    {part}
+                    {i < arr.length - 1 && <span className="ml-2">·</span>}
+                  </span>
+                ))}
+            </p>
+            {tailored.contact.location && (
               <p className="m-0 text-xs text-[color:var(--text-tertiary)]">
-                No sections were changed.
+                {tailored.contact.location}
               </p>
             )}
-            {changedSections.map((section) => {
-              const isSelected = selectedSectionId === section.id;
-              return (
-                <div
-                  key={section.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  onClick={() => toggleSection(section.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleSection(section.id);
-                    }
-                  }}
-                  className={`cursor-pointer rounded-[var(--radius-token-md)] border px-3 py-2 transition ${
-                    isSelected
-                      ? "border-[rgb(163_230_53_/_0.6)] bg-[rgb(132_204_22_/_0.10)]"
-                      : "border-[var(--border-default)] bg-[var(--surface-card)]"
-                  }`}
-                >
-                  <p className="m-0 text-sm font-medium text-[color:var(--text-primary)]">
-                    {section.heading}
-                  </p>
-                  <p className="mt-1 text-xs text-[color:var(--text-secondary)]">
-                    {section.explanation}
-                  </p>
-                </div>
-              );
-            })}
           </div>
-        </div>
+        )}
+        {tailored.sections.map((section) => (
+          <div key={section.id} className="mb-4">
+            <h3 className="m-0 border-b border-[var(--border-default)] pb-1 text-xs font-semibold tracking-[var(--tracking-wide)] uppercase text-[color:var(--text-tertiary)]">
+              {section.heading}
+            </h3>
+            {section.bullets.length > 0 && (
+              <ul className="mt-2 list-disc pl-5 text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
+                {section.bullets.map((bullet, i) => (
+                  <li key={i}>{bullet}</li>
+                ))}
+              </ul>
+            )}
+            {section.entries.map((entry, i) => (
+              <div key={i} className="mt-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-sm font-semibold text-[color:var(--text-primary)]">
+                    {entry.title}
+                    {entry.organization && (
+                      <span className="font-normal text-[color:var(--text-secondary)]">
+                        {" — "}
+                        {entry.organization}
+                      </span>
+                    )}
+                  </span>
+                  {entry.date_range && (
+                    <span className="shrink-0 text-xs text-[color:var(--text-tertiary)]">
+                      {entry.date_range}
+                    </span>
+                  )}
+                </div>
+                {entry.context && (
+                  <p className="m-0 text-xs italic text-[color:var(--text-tertiary)]">
+                    {entry.context}
+                  </p>
+                )}
+                {entry.bullets.length > 0 && (
+                  <ul className="mt-1 list-disc pl-5 text-sm leading-[var(--leading-relaxed)] text-[color:var(--text-primary)]">
+                    {entry.bullets.map((bullet, j) => (
+                      <li key={j}>{bullet}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </section>
   );

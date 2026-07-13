@@ -1,12 +1,12 @@
 """Business logic for AI-powered, structured CV tailoring.
 
 The tailoring is decomposed into three focused AI calls, each producing one
-unambiguous JSON shape: the contact header, the prose sections (summary/skills),
-and the structured experience/education entries. Splitting by shape removes the
-body-vs-entries ambiguity a single combined call created — smaller models were
-conflating the two (e.g. emitting skills as ``entries``). The three calls are
-independent and run concurrently; the service assembles and orders the result
-into a single ``TailoredCV`` (output shape unchanged for the rest of the app).
+unambiguous JSON shape: the contact header, the bullet sections (Career Summary,
+Impact Summary, Technology Snapshot, Languages), and the structured
+experience/education entries. Splitting by shape keeps generation reliable —
+each call has one representation (bullets vs entries), so a model can't conflate
+them. The calls run sequentially; the service assembles and canonically orders
+the result into a single ``TailoredCV``.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from typing import Literal, TypeVar
 from uuid import uuid4
 
 import anyio
-from pydantic import BaseModel, Field, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError
 
 from app.domain.ai import AIClient
 from app.domain.entities import (
@@ -50,10 +50,32 @@ from app.infrastructure.cv_document_rendering import (
 )
 
 _SYSTEM_PROMPT = (
-    "You are an expert career coach and professional CV writer. You tailor a "
-    "candidate's existing CV to a specific job description, keeping every claim "
-    "truthful and grounded in the original CV. Never invent experience. You "
-    "always respond with the exact JSON shape requested, nothing else."
+    "You are CareerForge AI, an elite resume architect for senior technology "
+    "professionals (staff+ engineers, engineering managers, directors, CTOs, "
+    "technical PMs). You reshape a candidate's existing resume to match a "
+    "specific job description — keyword by keyword, signal by signal — WITHOUT "
+    "fabricating anything.\n\n"
+    "Non-negotiable rules:\n"
+    "- Truth only: use ONLY facts present in the candidate's CV (and profile "
+    "notes when provided). Never invent employers, titles, dates, metrics, "
+    "skills, or scope. If a metric isn't present, use concrete scope that IS "
+    "(team size, user count, scale), or omit.\n"
+    "- Zero waffle: every line is specific and evidence-backed. Ban vague "
+    "phrases ('passionate about', 'responsible for', 'worked on', 'helped "
+    "with'); replace with action + scale + outcome.\n"
+    "- Quantify: prefer the X-Y-Z form — 'Accomplished [X] as measured by [Y] "
+    "by doing [Z]'. Most experience bullets should carry a metric or concrete "
+    "scope.\n"
+    "- Seniority language: lead with strong verbs (Architected, Led, Scaled, "
+    "Drove, Defined, Built 0->1); avoid weak verbs (assisted, helped, worked "
+    "on).\n"
+    "- Keyword mirroring: use the job description's exact terminology where the "
+    "candidate has the equivalent experience ('observability' not 'monitoring', "
+    "'AWS' not 'cloud').\n"
+    "- Front-load impact: the strongest, most JD-relevant material comes first.\n"
+    "- Plain text only: no markdown, no citations, no commentary — the "
+    "downstream renderer handles layout.\n\n"
+    "You always respond with the exact JSON shape requested, nothing else."
 )
 
 # Placeholders substituted into the versioned prompt templates.
@@ -71,7 +93,14 @@ _NONE_PLACEHOLDER_TEXT = "(none)"
 _MAX_GENERATION_ATTEMPTS = 3
 
 # Canonical section order for assembly, regardless of which call produced each.
-_SECTION_ORDER = {"summary": 0, "skills": 1, "experience": 2, "education": 3}
+_SECTION_ORDER = {
+    "summary": 0,
+    "impact": 1,
+    "skills": 2,
+    "languages": 3,
+    "experience": 4,
+    "education": 5,
+}
 
 _logger = logging.getLogger(__name__)
 
@@ -127,62 +156,40 @@ class _EntryModel(BaseModel):
     bullets: list[str] = Field(default_factory=list)
 
 
-def _require_changed_have_explanation(sections: list[_HasChangeMeta]) -> None:
-    for section in sections:
-        if section.changed and not (section.explanation or "").strip():
-            raise ValueError(
-                f"section '{section.id}' is changed but has no explanation"
-            )
+class _BulletSectionModel(BaseModel):
+    """A bullet section (Career Summary, Impact Summary, Technology Snapshot,
+    Languages): content is a non-empty list of bullet strings.
 
-
-class _HasChangeMeta(BaseModel):
-    """Fields shared by both section shapes (used by the explanation check)."""
+    There is deliberately no ``entries`` field — this call only produces bullet
+    lists, which keeps the bullets-vs-entries split unambiguous for the model.
+    """
 
     id: str
     heading: str
-    changed: bool
-    explanation: str | None = None
+    bullets: list[str] = Field(min_length=1)
 
 
-class _ProseSectionModel(_HasChangeMeta):
-    """A prose section (summary/skills): content is a single ``body`` string.
+class _EntrySectionModel(BaseModel):
+    """A structured section (Experience, Education): content is ``entries``.
 
-    There is deliberately no ``entries`` field — this call cannot produce
-    structured entries, which is what removes the body-vs-entries ambiguity.
+    There is deliberately no ``bullets`` field on this shape.
     """
 
-    body: str = Field(min_length=1)
-
-
-class _EntrySectionModel(_HasChangeMeta):
-    """A structured section (experience/education): content is ``entries``.
-
-    There is deliberately no ``body`` field on this shape.
-    """
-
+    id: str
+    heading: str
     entries: list[_EntryModel] = Field(min_length=1)
 
 
-class _ProseSectionsResult(BaseModel):
-    """Output of the prose-sections call."""
+class _BulletSectionsResult(BaseModel):
+    """Output of the bullet-sections call."""
 
-    sections: list[_ProseSectionModel] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _changed_sections_require_explanation(self) -> _ProseSectionsResult:
-        _require_changed_have_explanation(list(self.sections))
-        return self
+    sections: list[_BulletSectionModel] = Field(min_length=1)
 
 
 class _EntrySectionsResult(BaseModel):
     """Output of the experience/education call."""
 
     sections: list[_EntrySectionModel] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _changed_sections_require_explanation(self) -> _EntrySectionsResult:
-        _require_changed_have_explanation(list(self.sections))
-        return self
 
 
 class CVTailoringService:
@@ -261,7 +268,7 @@ class CVTailoringService:
             contact_prompt, _ContactResult, "contact"
         )
         prose_result = await self._generate_json(
-            prose_prompt, _ProseSectionsResult, "prose"
+            prose_prompt, _BulletSectionsResult, "prose"
         )
         experience_result = await self._generate_json(
             experience_prompt, _EntrySectionsResult, "experience"
@@ -426,20 +433,18 @@ class CVTailoringService:
 
     @staticmethod
     def _assemble_sections(
-        prose: _ProseSectionsResult, experience: _EntrySectionsResult
+        bullets: _BulletSectionsResult, experience: _EntrySectionsResult
     ) -> list[TailoredCVSection]:
         """Merge the two calls' sections into one canonically-ordered list."""
 
         sections: list[TailoredCVSection] = []
-        for prose_section in prose.sections:
+        for bullet_section in bullets.sections:
             sections.append(
                 TailoredCVSection(
-                    id=prose_section.id,
-                    heading=prose_section.heading,
-                    changed=prose_section.changed,
-                    body=prose_section.body,
+                    id=bullet_section.id,
+                    heading=bullet_section.heading,
+                    bullets=list(bullet_section.bullets),
                     entries=[],
-                    explanation=prose_section.explanation,
                 )
             )
         for entry_section in experience.sections:
@@ -447,8 +452,7 @@ class CVTailoringService:
                 TailoredCVSection(
                     id=entry_section.id,
                     heading=entry_section.heading,
-                    changed=entry_section.changed,
-                    body=None,
+                    bullets=[],
                     entries=[
                         TailoredCVEntry(
                             title=entry.title,
@@ -459,7 +463,6 @@ class CVTailoringService:
                         )
                         for entry in entry_section.entries
                     ],
-                    explanation=entry_section.explanation,
                 )
             )
         sections.sort(key=lambda s: _SECTION_ORDER.get(s.id, len(_SECTION_ORDER)))
@@ -473,8 +476,7 @@ class CVTailoringService:
         blocks: list[str] = []
         for section in sections:
             lines = [section.heading]
-            if section.body:
-                lines.append(section.body)
+            lines.extend(f"- {bullet}" for bullet in section.bullets)
             for entry in section.entries:
                 header = " — ".join(
                     part for part in (entry.title, entry.organization) if part

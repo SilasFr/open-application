@@ -43,10 +43,8 @@ class TailoredCVEntryRead(BaseModel):
 class TailoredCVSectionRead(BaseModel):
     id: str
     heading: str
-    changed: bool
-    body: str | None = None
+    bullets: list[str] = Field(default_factory=list)
     entries: list[TailoredCVEntryRead] = Field(default_factory=list)
-    explanation: str | None = None
 
 
 class CVTailorRequest(BaseModel):
@@ -92,8 +90,7 @@ class TailoredCVRead(BaseModel):
                 TailoredCVSectionRead(
                     id=section.id,
                     heading=section.heading,
-                    changed=section.changed,
-                    body=section.body,
+                    bullets=list(section.bullets),
                     entries=[
                         TailoredCVEntryRead(
                             title=entry.title,
@@ -104,7 +101,6 @@ class TailoredCVRead(BaseModel):
                         )
                         for entry in section.entries
                     ],
-                    explanation=section.explanation,
                 )
                 for section in tailored.sections
             ],
