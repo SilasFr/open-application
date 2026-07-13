@@ -46,7 +46,7 @@ from tests.fakes import (
 # the placeholders the service substitutes.
 _CONTACT_TEMPLATE = "Extract the contact header.\nCV:\n{{CV}}"
 _PROSE_TEMPLATE = (
-    "Tailor the prose sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
+    "Produce the bullet sections.\nCV:\n{{CV}}\nJD:\n{{JOB_DESCRIPTION}}\n"
     "PREVIOUS:\n{{PREVIOUS_TAILORED_CV}}\nREFINE:\n{{REFINEMENT_INSTRUCTIONS}}"
 )
 _EXPERIENCE_TEMPLATE = (
@@ -91,7 +91,7 @@ async def _seed_base_resume(repository: InMemoryCVRepository, user_id: str) -> C
     return await repository.replace(cv, b"docx-bytes", "application/docx")
 
 
-async def test_tailor_assembles_contact_prose_and_entries() -> None:
+async def test_tailor_assembles_contact_bullets_and_entries() -> None:
     ai = RoutingFakeAIClient()
     service, cv_repository, _, _ = _make_service(ai)
     await _seed_base_resume(cv_repository, "user-1")
@@ -103,21 +103,19 @@ async def test_tailor_assembles_contact_prose_and_entries() -> None:
     assert result.user_id == "user-1"
     assert result.contact is not None
     assert result.contact.name == "Jane Doe"
-    # summary + skills (prose) + experience (entries), canonically ordered.
+    # summary + skills (bullets) + experience (entries), canonically ordered.
     assert [s.id for s in result.sections] == ["summary", "skills", "experience"]
     summary = result.sections[0]
-    assert summary.changed is True
-    assert summary.explanation
-    assert summary.body
+    assert summary.bullets
     assert not summary.entries
     experience = result.sections[2]
-    assert experience.body is None
+    assert not experience.bullets
     assert experience.entries[0].title == "Software Engineer"
     assert experience.entries[0].bullets
-    # Entry content is flattened into the stored plain-text content too.
-    assert "Summary" in result.content
+    # Bullet + entry content is flattened into the stored plain-text content too.
+    assert "Career Summary" in result.content
     assert "Software Engineer" in result.content
-    # CV + JD were substituted into the prose sub-call's prompt.
+    # CV + JD were substituted into the bullet-sections sub-call's prompt.
     prose_prompt = ai.prompts["prose"]
     assert "Jane Doe, Python engineer" in prose_prompt
     assert "Seeking a Python engineer" in prose_prompt
@@ -161,23 +159,17 @@ async def test_sections_are_ordered_canonically() -> None:
                 {
                     "id": "education",
                     "heading": "Education",
-                    "changed": False,
                     "entries": [{"title": "BSc CS", "organization": "Uni"}],
-                    "explanation": None,
                 },
                 {
                     "id": "experience",
                     "heading": "Experience",
-                    "changed": False,
                     "entries": [{"title": "Engineer"}],
-                    "explanation": None,
                 },
                 {
                     "id": "projects",
                     "heading": "Projects",
-                    "changed": False,
                     "entries": [{"title": "Side project"}],
-                    "explanation": None,
                 },
             ]
         }
@@ -276,14 +268,23 @@ async def test_prose_call_empty_sections_list_raises() -> None:
         await service.tailor(user_id="user-1", job_description="JD")
 
 
-async def test_prose_section_missing_body_raises() -> None:
+async def test_bullet_section_missing_bullets_raises() -> None:
     ai = RoutingFakeAIClient(
         prose=json.dumps(
-            {
-                "sections": [
-                    {"id": "summary", "heading": "Summary", "changed": False}
-                ]
-            }
+            {"sections": [{"id": "summary", "heading": "Career Summary"}]}
+        )
+    )
+    service, cv_repository, _, _ = _make_service(ai)
+    await _seed_base_resume(cv_repository, "user-1")
+
+    with pytest.raises(InvalidAIResponseError):
+        await service.tailor(user_id="user-1", job_description="JD")
+
+
+async def test_bullet_section_empty_bullets_raises() -> None:
+    ai = RoutingFakeAIClient(
+        prose=json.dumps(
+            {"sections": [{"id": "summary", "heading": "Career Summary", "bullets": []}]}
         )
     )
     service, cv_repository, _, _ = _make_service(ai)
@@ -301,32 +302,7 @@ async def test_experience_section_empty_entries_raises() -> None:
                     {
                         "id": "experience",
                         "heading": "Experience",
-                        "changed": False,
                         "entries": [],
-                        "explanation": None,
-                    }
-                ]
-            }
-        )
-    )
-    service, cv_repository, _, _ = _make_service(ai)
-    await _seed_base_resume(cv_repository, "user-1")
-
-    with pytest.raises(InvalidAIResponseError):
-        await service.tailor(user_id="user-1", job_description="JD")
-
-
-async def test_changed_section_without_explanation_raises() -> None:
-    ai = RoutingFakeAIClient(
-        prose=json.dumps(
-            {
-                "sections": [
-                    {
-                        "id": "summary",
-                        "heading": "Summary",
-                        "body": "...",
-                        "changed": True,
-                        "explanation": None,
                     }
                 ]
             }
@@ -443,9 +419,13 @@ async def test_render_with_contact_and_entries_produces_bytes() -> None:
         ),
         sections=[
             TailoredCVSection(
+                id="summary",
+                heading="Career Summary",
+                bullets=["8+ years shipping <Python> & Go services."],
+            ),
+            TailoredCVSection(
                 id="experience",
                 heading="Professional Experience",
-                changed=True,
                 entries=[
                     TailoredCVEntry(
                         title="Senior Engineer",
@@ -455,7 +435,6 @@ async def test_render_with_contact_and_entries_produces_bytes() -> None:
                         bullets=["Built <Python> & Go APIs.", "Owned reliability."],
                     )
                 ],
-                explanation="Led with the most relevant role.",
             )
         ],
     )
@@ -478,10 +457,8 @@ async def test_render_pdf_and_docx_produce_bytes() -> None:
         sections=[
             TailoredCVSection(
                 id="summary",
-                heading="Summary",
-                body="Experienced engineer.",
-                changed=False,
-                explanation=None,
+                heading="Career Summary",
+                bullets=["Experienced engineer."],
             )
         ],
     )
@@ -501,6 +478,15 @@ async def test_render_pdf_and_docx_produce_bytes() -> None:
     assert docx_filename.endswith(".docx")
 
 
+def test_context_text_normalizes_echoed_brackets_and_prefix() -> None:
+    from app.infrastructure.cv_document_rendering import _context_text
+
+    assert _context_text("[Context: Series B fintech]") == "Series B fintech"
+    assert _context_text("Context: Startup") == "Startup"
+    assert _context_text("[[Context: Nested]]") == "Nested"
+    assert _context_text("Plain descriptor") == "Plain descriptor"
+
+
 async def test_render_rejects_unknown_format() -> None:
     service, _, _, _ = _make_service()
     tailored = TailoredCV(
@@ -511,7 +497,7 @@ async def test_render_rejects_unknown_format() -> None:
         content="Summary\nExperienced engineer.",
         created_at=datetime.now(UTC),
         sections=[
-            TailoredCVSection(id="summary", heading="Summary", body="x", changed=False)
+            TailoredCVSection(id="summary", heading="Summary", bullets=["x"])
         ],
     )
 

@@ -294,17 +294,16 @@ DEFAULT_PROSE_RESPONSE = json.dumps(
         "sections": [
             {
                 "id": "summary",
-                "heading": "Summary",
-                "changed": True,
-                "body": "Experienced engineer with a track record of shipping.",
-                "explanation": "Reworded to emphasize experience relevant to the role.",
+                "heading": "Career Summary",
+                "bullets": [
+                    "8+ years building high-throughput backend systems.",
+                    "Led teams of 4–10 engineers across two orgs.",
+                ],
             },
             {
                 "id": "skills",
-                "heading": "Skills",
-                "changed": False,
-                "body": "Languages: Python, Go",
-                "explanation": None,
+                "heading": "Technology & Skills Snapshot",
+                "bullets": ["Languages: Python, Go"],
             },
         ]
     }
@@ -316,7 +315,6 @@ DEFAULT_EXPERIENCE_RESPONSE = json.dumps(
             {
                 "id": "experience",
                 "heading": "Professional Experience",
-                "changed": False,
                 "entries": [
                     {
                         "title": "Software Engineer",
@@ -326,7 +324,6 @@ DEFAULT_EXPERIENCE_RESPONSE = json.dumps(
                         "bullets": ["Built and shipped Python services."],
                     }
                 ],
-                "explanation": None,
             }
         ]
     }
@@ -367,7 +364,7 @@ class RoutingFakeAIClient(AIClient):
     def _task_for(prompt: str) -> str:
         if "contact header" in prompt:
             return "contact"
-        if "prose sections" in prompt:
+        if "bullet sections" in prompt:
             return "prose"
         if "Experience and Education" in prompt:
             return "experience"

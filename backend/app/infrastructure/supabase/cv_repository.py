@@ -87,9 +87,7 @@ def _tailored_to_row(tailored: TailoredCV) -> dict[str, Any]:
             {
                 "id": section.id,
                 "heading": section.heading,
-                "body": section.body,
-                "changed": section.changed,
-                "explanation": section.explanation,
+                "bullets": list(section.bullets),
                 "entries": [
                     {
                         "title": entry.title,
@@ -115,8 +113,7 @@ def _tailored_to_entity(row: Any) -> TailoredCV:
         TailoredCVSection(
             id=str(section["id"]),
             heading=section["heading"],
-            changed=bool(section["changed"]),
-            body=section.get("body"),
+            bullets=list(section.get("bullets") or []),
             entries=[
                 TailoredCVEntry(
                     title=entry["title"],
@@ -127,7 +124,6 @@ def _tailored_to_entity(row: Any) -> TailoredCV:
                 )
                 for entry in (section.get("entries") or [])
             ],
-            explanation=section.get("explanation"),
         )
         for section in (row.get("sections") or [])
     ]

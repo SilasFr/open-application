@@ -142,8 +142,7 @@ def test_tailor_cv_returns_structured_sections(client: TestClient) -> None:
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["sections"][0]["id"] == "summary"
-    assert body["sections"][0]["changed"] is True
-    assert body["sections"][0]["explanation"]
+    assert body["sections"][0]["bullets"]
     assert body["application_id"] is None
     return_id = body["id"]
 

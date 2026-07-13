@@ -111,19 +111,16 @@ class TailoredCVEntry:
 class TailoredCVSection:
     """A single section of a structured, AI-tailored CV.
 
-    A section is rendered from either ``body`` (prose sections like Summary or
-    Skills) or ``entries`` (structured sections like Experience or Education) —
-    at least one is populated, enforced by the service's structured-output
-    validation. Sections with ``changed=True`` must carry a non-null
-    ``explanation`` (also enforced there, not by this dataclass).
+    A section holds either ``bullets`` (bullet sections like Career Summary,
+    Impact Summary, Technology Snapshot, Languages) or ``entries`` (structured
+    sections like Experience or Education) — exactly one is populated, enforced
+    by the service's per-shape structured-output validation.
     """
 
     id: str
     heading: str
-    changed: bool
-    body: str | None = None
+    bullets: list[str] = field(default_factory=list)
     entries: list[TailoredCVEntry] = field(default_factory=list)
-    explanation: str | None = None
 
 
 @dataclass

@@ -1,28 +1,35 @@
-Tailor the candidate's **Experience and Education** to the target job description
-and return them as structured JSON. Produce ONLY these structured sections here —
-each section is a list of `entries`. Do NOT produce a Summary or Skills section,
-and do NOT use free-form prose; every item is a structured entry.
+Produce the **Experience and Education** sections of a senior-tech resume
+tailored to the target job description, as structured JSON. Each section is a
+list of `entries`. Do NOT produce a Career Summary, Impact, Skills, or Languages
+section here, and do NOT use free-form prose — every item is a structured entry.
+
+Sections (use only what the CV supports):
+- `experience` — heading "Professional Experience". One entry per role, most
+  recent first. 4–6 bullets for recent/relevant roles, 2–3 for older ones.
+- `education` — heading "Education & Certifications". One entry per degree or
+  certification. Bullets may be empty. Include only if the CV has education.
 
 Rules:
-- Use ONLY information present in the original CV. Do not invent roles, employers,
-  degrees, dates, or metrics.
-- Reorder and reword to surface the experience most relevant to the job; mirror
-  important keywords from the job description where they truthfully apply.
-- Produce an `experience` section and, if the CV lists education, an `education`
-  section. Each section has a short, stable, lowercase `id`, a human `heading`,
-  and a non-empty `entries` list (at least one entry).
+- Use ONLY information present in the CV. Never invent roles, employers, degrees,
+  dates, or metrics — including team sizes, revenue, percentages, or scale
+  figures the CV does not state. Copy any number from the CV exactly, never
+  round or embellish it.
 - Each entry is `{ "title", "organization", "date_range", "context", "bullets" }`:
   - `title` (required) — the role or degree.
   - `organization` — company or school, or null.
   - `date_range` — a human string like "Feb 2026 – May 2026", or null.
-  - `context` — an optional one-line note, or null.
-  - `bullets` — a list of accomplishment strings (may be empty for education).
-- Set `"changed": true` if you altered the section from the original CV (reordered
-  roles, reworded bullets, re-emphasized), or `"changed": false` if carried over
-  unchanged. `changed` must be `true` or `false`, never null.
-- Every section with `"changed": true` MUST include a non-empty, human-readable
-  `"explanation"` of what changed and why (referencing the job description where
-  relevant). Sections with `"changed": false` MUST have `"explanation": null`.
+  - `context` — a one-line company descriptor (stage, size, domain) when the
+    employer may be unfamiliar to a recruiter and the CV supports it, else null.
+  - `bullets` — accomplishment strings grounded in the CV. Lead each with a
+    strong verb (Architected, Led, Scaled, Drove, Built 0->1). Include a metric
+    or concrete scope ONLY when the CV states one; otherwise describe the
+    action and outcome without inventing a number. No waffle ("responsible
+    for", "worked on", "helped with").
+- Each section has a lowercase `id` (exactly "experience" or "education"), a
+  `heading`, and a non-empty `entries` list.
+- The JSON example below shows OUTPUT SHAPE ONLY. Its company, dates, and
+  numbers are illustrative placeholders — never copy them into your answer.
+  Every fact in your output must trace back to the CV above.
 
 ## Original CV
 
@@ -54,35 +61,31 @@ fences, no preamble, no commentary, no trailing text:
     {
       "id": "experience",
       "heading": "Professional Experience",
-      "changed": true,
       "entries": [
         {
-          "title": "Senior Backend Engineer",
-          "organization": "Foo Inc",
-          "date_range": "2020 – 2024",
-          "context": "High-scale fintech APIs",
+          "title": "<title from CV>",
+          "organization": "<organization from CV, or null>",
+          "date_range": "<date range from CV, or null>",
+          "context": "<one-line descriptor, only if CV supports it, else null>",
           "bullets": [
-            "Built Python/Go services scaling to 1M requests/day.",
-            "Owned service reliability, reaching 99.9% uptime."
+            "<CV-grounded accomplishment, with its real metric if the CV has one>",
+            "<second CV-grounded accomplishment>"
           ]
         }
-      ],
-      "explanation": "Led with the most relevant role and emphasized scale metrics the job calls out."
+      ]
     },
     {
       "id": "education",
-      "heading": "Education",
-      "changed": false,
+      "heading": "Education & Certifications",
       "entries": [
         {
-          "title": "BSc Computer Science",
-          "organization": "State University",
-          "date_range": "2014 – 2018",
+          "title": "<degree/certification from CV>",
+          "organization": "<school from CV, or null>",
+          "date_range": "<date range from CV, or null>",
           "context": null,
           "bullets": []
         }
-      ],
-      "explanation": null
+      ]
     }
   ]
 }

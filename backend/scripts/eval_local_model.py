@@ -34,9 +34,9 @@ from app.services.cv_tailoring_service import (
     _REFINEMENT_PLACEHOLDER,
     _SYSTEM_PROMPT,
     CVTailoringService,
+    _BulletSectionsResult,
     _ContactResult,
     _EntrySectionsResult,
-    _ProseSectionsResult,
 )
 
 _SAMPLE_CV = (
@@ -79,7 +79,7 @@ async def main() -> int:
 
     tasks = [
         ("contact", _fill(load_prompt("cv_contact")), _ContactResult),
-        ("prose", _fill(load_prompt("cv_prose_sections")), _ProseSectionsResult),
+        ("prose", _fill(load_prompt("cv_prose_sections")), _BulletSectionsResult),
         ("experience", _fill(load_prompt("cv_experience")), _EntrySectionsResult),
     ]
 
