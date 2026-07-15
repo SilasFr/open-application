@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 
-from app.domain.ai import AIClient
+from app.domain.ai import AIClient, AIClientResolver
+from app.domain.crypto import SecretCipher
 from app.domain.entities import (
     CV,
     Application,
@@ -12,6 +13,7 @@ from app.domain.entities import (
     ApplicationNote,
     ApplicationTask,
     TailoredCV,
+    UserAIKey,
 )
 from app.domain.repositories import (
     ApplicationRepository,
@@ -20,6 +22,7 @@ from app.domain.repositories import (
     NoteRepository,
     TailoredCVRepository,
     TaskRepository,
+    UserAIKeyRepository,
 )
 
 
@@ -378,3 +381,67 @@ class RoutingFakeAIClient(AIClient):
             raise self._error
         queue = self._queues[task]
         return queue.pop(0) if len(queue) > 1 else queue[0]
+
+
+class FakeAIClientResolver(AIClientResolver):
+    """Resolves to a single fixed :class:`AIClient` regardless of ``user_id`` —
+    the BYOK-agnostic default most tailoring tests want. Records resolved
+    ``user_id``s for tests that care which user triggered resolution."""
+
+    def __init__(self, client: AIClient) -> None:
+        self._client = client
+        self.resolved_for: list[str] = []
+
+    async def resolve(self, user_id: str) -> AIClient:
+        self.resolved_for.append(user_id)
+        return self._client
+
+
+class PerUserFakeAIClientResolver(AIClientResolver):
+    """Resolves to a per-user :class:`AIClient` from an explicit mapping, with a
+    ``default`` for any user not in it — used to assert that BYOK routing
+    actually gives different users different clients (the regression guard for
+    never caching a resolved client across users)."""
+
+    def __init__(self, *, clients: dict[str, AIClient], default: AIClient) -> None:
+        self._clients = clients
+        self._default = default
+
+    async def resolve(self, user_id: str) -> AIClient:
+        return self._clients.get(user_id, self._default)
+
+
+class InMemoryUserAIKeyRepository(UserAIKeyRepository):
+    """Stores at most one BYOK configuration per user_id. No network."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, UserAIKey] = {}
+
+    async def get(self, user_id: str) -> UserAIKey | None:
+        return self._store.get(user_id)
+
+    async def upsert(self, key: UserAIKey) -> UserAIKey:
+        self._store[key.user_id] = key
+        return key
+
+    async def delete(self, user_id: str) -> None:
+        self._store.pop(user_id, None)
+
+
+class FakeCipher(SecretCipher):
+    """Reversible, non-secret 'encryption' for tests — never a real crypto
+    primitive, but the plaintext is reversed (not embedded verbatim) so tests
+    can assert the stored ciphertext never contains the plaintext key, and
+    prefixed with the aad so tests can assert decryption fails when the aad
+    (owning user id) doesn't match."""
+
+    _SEPARATOR = "::"
+
+    def encrypt(self, plaintext: str, *, aad: str) -> tuple[str, str]:
+        return f"{aad}{self._SEPARATOR}{plaintext[::-1]}", "fake-nonce"
+
+    def decrypt(self, ciphertext_b64: str, nonce_b64: str, *, aad: str) -> str:
+        stored_aad, _, reversed_plaintext = ciphertext_b64.partition(self._SEPARATOR)
+        if stored_aad != aad:
+            raise ValueError("Failed to decrypt secret: wrong key or AAD.")
+        return reversed_plaintext[::-1]

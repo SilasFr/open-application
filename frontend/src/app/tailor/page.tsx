@@ -102,6 +102,14 @@ export default function TailorPage() {
         setError("Please upload your base resume to continue.");
         return;
       }
+      // Your own (BYOK) key was rejected — actionable by the user, distinct
+      // from a generic platform-side failure. Point them at settings rather
+      // than showing the same message as an outage.
+      if (e instanceof ApiError && e.code === "provider_auth_error") {
+        setError("Your saved AI provider key was rejected. Check it in Settings.");
+        setPhase("jd");
+        return;
+      }
       setError(e instanceof Error ? e.message : "Failed to tailor resume.");
       setPhase("jd");
     }

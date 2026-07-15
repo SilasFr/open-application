@@ -34,7 +34,15 @@ export default function RootLayout({
           <Link href="/" className="font-semibold">
             Open Application
           </Link>
-          <AuthStatus />
+          <div className="flex items-center gap-4">
+            <Link
+              href="/settings"
+              className="text-sm text-[color:var(--text-secondary)] hover:underline"
+            >
+              Settings
+            </Link>
+            <AuthStatus />
+          </div>
         </header>
         {children}
       </body>

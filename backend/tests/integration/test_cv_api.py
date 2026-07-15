@@ -367,6 +367,7 @@ def test_malformed_ai_response_returns_422() -> None:
     from app.services.cv_tailoring_service import CVTailoringService
     from tests.fakes import (
         FakeAIClient,
+        FakeAIClientResolver,
         InMemoryApplicationRepository,
         InMemoryCVRepository,
         InMemoryTailoredCVRepository,
@@ -380,7 +381,7 @@ def test_malformed_ai_response_returns_422() -> None:
     app.dependency_overrides[get_current_user_id] = lambda: "user-api"
     app.dependency_overrides[get_cv_service] = lambda: CVService(cv_repository)
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
-        FakeAIClient(response="not valid json at all"),
+        FakeAIClientResolver(FakeAIClient(response="not valid json at all")),
         TEST_PROMPTS,
         cv_repository,
         tailored_repository,

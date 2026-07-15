@@ -17,6 +17,9 @@ from typing import Any
 import httpx
 
 from app.domain.ai import AIClient
+from app.domain.exceptions import ProviderAuthenticationError
+
+_AUTH_STATUS_CODES = {401, 403}
 
 # LLM generation — especially a local model's first (cold) call — is slow
 # relative to a normal HTTP request. Give it real headroom rather than the
@@ -64,6 +67,14 @@ class OpenAICompatibleClient(AIClient):
                 headers=headers,
                 json=payload,
             )
+            if response.status_code in _AUTH_STATUS_CODES:
+                # Actionable by the user (fix your key) — see
+                # ProviderAuthenticationError. Checked before the generic >=400
+                # branch so a BYOK auth failure isn't swallowed into the same
+                # bucket as rate limits/outages.
+                raise ProviderAuthenticationError(
+                    "The provider API key was rejected."
+                )
             if response.status_code >= 400:
                 # Surface the provider's error body (rate-limit details, model
                 # errors, auth) — httpx's default HTTPStatusError message drops

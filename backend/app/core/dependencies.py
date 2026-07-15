@@ -14,8 +14,9 @@ from fastapi import Depends
 from supabase import Client, create_client
 
 from app.core.config import Settings, get_settings
-from app.domain.ai import AIClient
+from app.domain.ai import AIClientResolver
 from app.domain.auth import TokenVerifier
+from app.domain.crypto import SecretCipher
 from app.domain.repositories import (
     ApplicationRepository,
     ContactRepository,
@@ -23,12 +24,12 @@ from app.domain.repositories import (
     NoteRepository,
     TailoredCVRepository,
     TaskRepository,
+    UserAIKeyRepository,
 )
-from app.infrastructure.ai.anthropic_client import AnthropicClient
-from app.infrastructure.ai.gemini_client import GeminiClient
-from app.infrastructure.ai.openai_compatible_client import OpenAICompatibleClient
 from app.infrastructure.ai.prompts import load_prompt
+from app.infrastructure.ai.resolver import UserAIClientResolver
 from app.infrastructure.auth.supabase_verifier import SupabaseTokenVerifier
+from app.infrastructure.crypto.aes_gcm_cipher import AesGcmCipher
 from app.infrastructure.supabase.application_repository import (
     SupabaseApplicationRepository,
 )
@@ -39,6 +40,10 @@ from app.infrastructure.supabase.cv_repository import (
 )
 from app.infrastructure.supabase.note_repository import SupabaseNoteRepository
 from app.infrastructure.supabase.task_repository import SupabaseTaskRepository
+from app.infrastructure.supabase.user_ai_key_repository import (
+    SupabaseUserAIKeyRepository,
+)
+from app.services.ai_settings_service import AISettingsService
 from app.services.application_service import ApplicationService
 from app.services.contact_service import ContactService
 from app.services.cv_service import CVService
@@ -119,28 +124,57 @@ def get_task_service(
 TaskServiceDep = Annotated[TaskService, Depends(get_task_service)]
 
 
-def get_ai_client(settings: SettingsDep) -> AIClient:
-    if settings.ai_provider == "anthropic":
-        return AnthropicClient(
-            api_key=settings.anthropic_api_key,
-            model=settings.ai_model,
-            max_tokens=settings.ai_max_tokens,
-        )
-    if settings.ai_provider == "openai_compatible":
-        return OpenAICompatibleClient(
-            base_url=settings.ai_base_url,
-            api_key=settings.ai_api_key,
-            model=settings.ai_model,
-            max_tokens=settings.ai_max_tokens,
-        )
-    return GeminiClient(
-        api_key=settings.gemini_api_key,
-        model=settings.ai_model,
-        max_tokens=settings.ai_max_tokens,
+def get_user_ai_key_repository(client: SupabaseDep) -> UserAIKeyRepository:
+    return SupabaseUserAIKeyRepository(client)
+
+
+UserAIKeyRepositoryDep = Annotated[
+    UserAIKeyRepository, Depends(get_user_ai_key_repository)
+]
+
+
+def get_secret_cipher(settings: SettingsDep) -> SecretCipher:
+    return AesGcmCipher(master_key_b64=settings.byok_encryption_key)
+
+
+SecretCipherDep = Annotated[SecretCipher, Depends(get_secret_cipher)]
+
+
+# NOTE: deliberately NOT @lru_cache'd, same as the resolver it builds. Caching
+# either would cross-wire one user's BYOK key into another user's request —
+# see UserAIClientResolver's docstring.
+def get_ai_client_resolver(
+    settings: SettingsDep,
+    key_repository: UserAIKeyRepositoryDep,
+    cipher: SecretCipherDep,
+) -> AIClientResolver:
+    platform_api_key = {
+        "anthropic": settings.anthropic_api_key,
+        "openai_compatible": settings.ai_api_key,
+    }.get(settings.ai_provider, settings.gemini_api_key)
+    return UserAIClientResolver(
+        key_repository=key_repository,
+        cipher=cipher,
+        platform_provider=settings.ai_provider,
+        platform_api_key=platform_api_key,
+        platform_model=settings.ai_model,
+        platform_max_tokens=settings.ai_max_tokens,
+        platform_base_url=settings.ai_base_url,
     )
 
 
-AIClientDep = Annotated[AIClient, Depends(get_ai_client)]
+AIClientResolverDep = Annotated[AIClientResolver, Depends(get_ai_client_resolver)]
+
+
+def get_ai_settings_service(
+    repository: UserAIKeyRepositoryDep, cipher: SecretCipherDep
+) -> AISettingsService:
+    return AISettingsService(repository, cipher)
+
+
+AISettingsServiceDep = Annotated[
+    AISettingsService, Depends(get_ai_settings_service)
+]
 
 
 @lru_cache
@@ -192,13 +226,13 @@ def _tailoring_prompts() -> TailoringPrompts:
 
 
 def get_cv_tailoring_service(
-    ai_client: AIClientDep,
+    ai_client_resolver: AIClientResolverDep,
     cv_repository: CVRepositoryDep,
     tailored_cv_repository: TailoredCVRepositoryDep,
     application_repository: ApplicationRepositoryDep,
 ) -> CVTailoringService:
     return CVTailoringService(
-        ai_client,
+        ai_client_resolver,
         _tailoring_prompts(),
         cv_repository,
         tailored_cv_repository,

@@ -6,7 +6,15 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.v1.routers import applications, contacts, cv, health, notes, tasks
+from app.api.v1.routers import (
+    ai_settings,
+    applications,
+    contacts,
+    cv,
+    health,
+    notes,
+    tasks,
+)
 from app.core.config import get_settings
 from app.domain.exceptions import (
     AIGenerationError,
@@ -82,6 +90,7 @@ def create_app() -> FastAPI:
     app.include_router(contacts.router, prefix=_API_V1_PREFIX)
     app.include_router(tasks.router, prefix=_API_V1_PREFIX)
     app.include_router(cv.router, prefix=_API_V1_PREFIX)
+    app.include_router(ai_settings.router, prefix=_API_V1_PREFIX)
 
     _register_exception_handlers(app)
     return app

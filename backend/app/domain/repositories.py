@@ -16,6 +16,7 @@ from app.domain.entities import (
     ApplicationNote,
     ApplicationTask,
     TailoredCV,
+    UserAIKey,
 )
 
 
@@ -170,3 +171,22 @@ class TailoredCVRepository(ABC):
     @abstractmethod
     async def list_for_user(self, user_id: str) -> list[TailoredCV]:
         """Return all tailored CVs owned by ``user_id`` (newest first)."""
+
+
+class UserAIKeyRepository(ABC):
+    """Persistence contract for a user's single BYOK configuration.
+
+    Only one :class:`~app.domain.entities.UserAIKey` row exists per ``user_id``
+    at a time, mirroring :class:`CVRepository`'s "exactly one current" shape."""
+
+    @abstractmethod
+    async def get(self, user_id: str) -> UserAIKey | None:
+        """Return the user's saved AI key, or ``None`` if they use the shared tier."""
+
+    @abstractmethod
+    async def upsert(self, key: UserAIKey) -> UserAIKey:
+        """Create or replace the user's saved AI key and return the stored entity."""
+
+    @abstractmethod
+    async def delete(self, user_id: str) -> None:
+        """Remove the user's saved AI key. No-op if none exists."""

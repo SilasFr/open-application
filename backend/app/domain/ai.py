@@ -16,3 +16,17 @@ class AIClient(ABC):
     @abstractmethod
     async def generate(self, *, system: str, prompt: str) -> str:
         """Return the model's completion for ``prompt`` under ``system`` guidance."""
+
+
+class AIClientResolver(ABC):
+    """Chooses which :class:`AIClient` serves a given user's request.
+
+    Kept separate from ``AIClient`` itself so callers that only need to read
+    existing data never pay for a per-user lookup/decrypt — only call sites that
+    actually generate text resolve a client, and they do so once per call, per user.
+    """
+
+    @abstractmethod
+    async def resolve(self, user_id: str) -> AIClient:
+        """Return the client to use for ``user_id``: their own configured
+        provider/key if set, otherwise the platform's shared client."""

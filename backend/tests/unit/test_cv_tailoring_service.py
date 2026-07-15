@@ -35,6 +35,7 @@ from app.services.cv_tailoring_service import CVTailoringService, TailoringPromp
 from tests.fakes import (
     DEFAULT_PROSE_RESPONSE,
     FakeAIClient,
+    FakeAIClientResolver,
     InMemoryApplicationRepository,
     InMemoryCVRepository,
     InMemoryTailoredCVRepository,
@@ -70,7 +71,7 @@ def _make_service(
     tailored_repository = InMemoryTailoredCVRepository()
     application_repository = InMemoryApplicationRepository()
     service = CVTailoringService(
-        ai_client or RoutingFakeAIClient(),
+        FakeAIClientResolver(ai_client or RoutingFakeAIClient()),
         _PROMPTS,
         cv_repository,
         tailored_repository,
