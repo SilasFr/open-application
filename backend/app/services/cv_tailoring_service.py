@@ -21,7 +21,7 @@ from uuid import uuid4
 import anyio
 from pydantic import BaseModel, Field, ValidationError
 
-from app.domain.ai import AIClient
+from app.domain.ai import AIClient, AIClientResolver
 from app.domain.entities import (
     ContactLink,
     TailoredCV,
@@ -214,13 +214,13 @@ class CVTailoringService:
 
     def __init__(
         self,
-        ai_client: AIClient,
+        ai_client_resolver: AIClientResolver,
         prompts: TailoringPrompts,
         cv_repository: CVRepository,
         tailored_repository: TailoredCVRepository,
         application_repository: ApplicationRepository,
     ) -> None:
-        self._ai_client = ai_client
+        self._ai_client_resolver = ai_client_resolver
         self._prompts = prompts
         self._cv_repository = cv_repository
         self._tailored_repository = tailored_repository
@@ -269,6 +269,12 @@ class CVTailoringService:
             refinement_instructions=refinement_instructions,
         )
 
+        # Resolve once per tailor() call: the user's own BYOK client if they've
+        # configured one, else the platform's shared client. Resolved here
+        # (not at construction) so read-only call sites on this service never
+        # pay for a key lookup/decrypt they don't need.
+        client = await self._ai_client_resolver.resolve(user_id)
+
         # The three calls are independent, but we run them sequentially rather
         # than concurrently: free-tier hosted providers (e.g. Groq) enforce a
         # tokens-per-minute limit, and firing all three at once bursts past it
@@ -277,13 +283,13 @@ class CVTailoringService:
         # The first failure (after its retries) short-circuits and propagates,
         # mapped to 422/502 at the API boundary.
         contact_result = await self._generate_json(
-            contact_prompt, _ContactResult, "contact"
+            client, contact_prompt, _ContactResult, "contact"
         )
         prose_result = await self._generate_json(
-            prose_prompt, _BulletSectionsResult, "prose"
+            client, prose_prompt, _BulletSectionsResult, "prose"
         )
         experience_result = await self._generate_json(
-            experience_prompt, _EntrySectionsResult, "experience"
+            client, experience_prompt, _EntrySectionsResult, "experience"
         )
 
         contact = self._to_contact(contact_result.contact)
@@ -372,7 +378,7 @@ class CVTailoringService:
         )
 
     async def _generate_json(
-        self, prompt: str, validator: type[_ModelT], label: str
+        self, client: AIClient, prompt: str, validator: type[_ModelT], label: str
     ) -> _ModelT:
         """Generate + validate one sub-call's JSON, retrying on malformed output.
 
@@ -385,9 +391,16 @@ class CVTailoringService:
         last_error: InvalidAIResponseError | None = None
         for attempt in range(1, _MAX_GENERATION_ATTEMPTS + 1):
             try:
-                raw_response = await self._ai_client.generate(
+                raw_response = await client.generate(
                     system=_SYSTEM_PROMPT, prompt=prompt
                 )
+            except DomainError:
+                # A user's own (BYOK) key being rejected is actionable by them,
+                # not a transient platform failure — surface it as-is (e.g.
+                # ProviderAuthenticationError) rather than folding it into the
+                # generic AIGenerationError below, and don't retry it: a bad
+                # key won't start working on attempt 2.
+                raise
             except Exception as exc:
                 # Deliberately broad: the AIClient may be backed by any vendor
                 # SDK with its own exception hierarchy. The service must not

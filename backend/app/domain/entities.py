@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from app.domain.value_objects import ApplicationStatus, NoteType
+from app.domain.value_objects import AIProvider, ApplicationStatus, NoteType
 
 
 @dataclass
@@ -74,6 +74,22 @@ class CV:
     storage_path: str
     created_at: datetime
     content: str | None = None
+
+
+@dataclass
+class UserAIKey:
+    """A user's own AI provider configuration (BYOK). At most one per user;
+    absence means that user is served by the platform's shared free tier."""
+
+    user_id: str
+    provider: AIProvider
+    encrypted_key: str
+    nonce: str
+    key_last4: str
+    model: str
+    created_at: datetime
+    updated_at: datetime
+    base_url: str | None = None
 
 
 @dataclass

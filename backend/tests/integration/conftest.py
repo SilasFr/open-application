@@ -25,6 +25,7 @@ from app.services.cv_tailoring_service import CVTailoringService, TailoringPromp
 from app.services.note_service import NoteService
 from app.services.task_service import TaskService
 from tests.fakes import (
+    FakeAIClientResolver,
     InMemoryApplicationRepository,
     InMemoryContactRepository,
     InMemoryCVRepository,
@@ -74,7 +75,11 @@ def _override_services(app: FastAPI) -> None:
     )
     app.dependency_overrides[get_cv_service] = lambda: CVService(cv_repository)
     app.dependency_overrides[get_cv_tailoring_service] = lambda: CVTailoringService(
-        RoutingFakeAIClient(), TEST_PROMPTS, cv_repository, tailored_repository, repository
+        FakeAIClientResolver(RoutingFakeAIClient()),
+        TEST_PROMPTS,
+        cv_repository,
+        tailored_repository,
+        repository,
     )
 
 

@@ -148,6 +148,23 @@ export interface ContactInput {
   notes?: string;
 }
 
+export type AIProviderName = "anthropic" | "gemini" | "openai_compatible";
+
+export interface AISettings {
+  provider: AIProviderName;
+  model: string;
+  base_url: string | null;
+  key_last4: string;
+  created_at: string;
+}
+
+export interface SaveAISettingsInput {
+  provider: AIProviderName;
+  api_key: string;
+  model: string;
+  base_url?: string | null;
+}
+
 export interface ApplicationTask {
   id: string;
   application_id: string;
@@ -317,4 +334,15 @@ export const api = {
     request<void>(`/api/v1/applications/${applicationId}/tasks/${taskId}`, {
       method: "DELETE",
     }),
+
+  getAISettings: () => request<AISettings | null>("/api/v1/settings/ai"),
+
+  saveAISettings: (input: SaveAISettingsInput) =>
+    request<AISettings>("/api/v1/settings/ai", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    }),
+
+  deleteAISettings: () =>
+    request<void>("/api/v1/settings/ai", { method: "DELETE" }),
 };

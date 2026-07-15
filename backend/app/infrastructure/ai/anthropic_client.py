@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import anthropic
 from anthropic import AsyncAnthropic
 
 from app.domain.ai import AIClient
+from app.domain.exceptions import ProviderAuthenticationError
 
 
 class AnthropicClient(AIClient):
@@ -20,12 +22,20 @@ class AnthropicClient(AIClient):
         self._max_tokens = max_tokens
 
     async def generate(self, *, system: str, prompt: str) -> str:
-        message = await self._client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        try:
+            message = await self._client.messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except (anthropic.AuthenticationError, anthropic.PermissionDeniedError) as exc:
+            # Distinct from any other failure: a rejected/revoked key is
+            # actionable by the user (fix your key), not a platform outage —
+            # see ProviderAuthenticationError.
+            raise ProviderAuthenticationError(
+                "The Anthropic API key was rejected."
+            ) from exc
         return "".join(
             block.text for block in message.content if block.type == "text"
         )

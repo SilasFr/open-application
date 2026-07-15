@@ -56,6 +56,14 @@ def can_transition(source: ApplicationStatus, target: ApplicationStatus) -> bool
     return target in _ALLOWED_TRANSITIONS[source]
 
 
+class AIProvider(StrEnum):
+    """A supported AI provider a user can bring their own key for."""
+
+    ANTHROPIC = "anthropic"
+    GEMINI = "gemini"
+    OPENAI_COMPATIBLE = "openai_compatible"
+
+
 class NoteType(StrEnum):
     """Kind of entry in an application's activity timeline."""
 

@@ -59,3 +59,12 @@ class AIGenerationError(DomainError):
     error (Constitution Principle III/V: AI is abstracted behind AIClient)."""
 
     code = "ai_generation_error"
+
+
+class ProviderAuthenticationError(DomainError):
+    """A user-supplied (BYOK) AI provider key was rejected by the provider —
+    at save time (live validation) or later, if a previously valid key stops
+    working. Distinct from ``AIGenerationError`` because it is actionable by the
+    user (fix your key), not a transient platform-side failure."""
+
+    code = "provider_auth_error"

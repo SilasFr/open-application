@@ -42,6 +42,12 @@ class Settings(BaseSettings):
     ai_model: str = "gemini-2.0-flash"
     ai_max_tokens: int = Field(default=4096, gt=0)
 
+    # Base64-encoded 32-byte AES-256-GCM key used to encrypt users' own BYOK API
+    # keys at rest. Empty disables BYOK entirely (every request falls back to the
+    # ai_provider/ai_* shared client above) — consistent with the "secrets default
+    # to empty" rule, so local dev/tests boot with no crypto config.
+    byok_encryption_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
